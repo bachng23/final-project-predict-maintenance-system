@@ -2,7 +2,13 @@
 CREATE TYPE "BearingStatus" AS ENUM ('NORMAL', 'INSPECT', 'NEGOTIATE', 'MAINTAIN', 'STOP', 'OFFLINE');
 
 -- CreateEnum
+CREATE TYPE "FaultType" AS ENUM ('INNER_RACE', 'OUTER_RACE', 'BALL', 'CAGE', 'UNKNOWN');
+
+-- CreateEnum
 CREATE TYPE "DecisionStatus" AS ENUM ('PENDING', 'RESOLVED', 'ACKNOWLEDGED');
+
+-- CreateEnum
+CREATE TYPE "ActionType" AS ENUM ('CONTINUE', 'INSPECT', 'MAINTAIN', 'STOP');
 
 -- CreateEnum
 CREATE TYPE "OperatorAction" AS ENUM ('APPROVE', 'OVERRIDE', 'REJECT', 'ACKNOWLEDGE');
@@ -23,10 +29,13 @@ CREATE TYPE "UserRole" AS ENUM ('VIEWER', 'OPERATOR', 'ENGINEER', 'ADMIN');
 CREATE TYPE "DecisionType" AS ENUM ('MAINTENANCE', 'INSPECTION', 'REPLACEMENT', 'IGNORE');
 
 -- CreateEnum
-CREATE TYPE "EntityType" AS ENUM ('BEARING', 'PREDICTION', 'SNAPSHOT', 'DECISION', 'USER', 'CONFIG');
+CREATE TYPE "EntityType" AS ENUM ('DECISION', 'CONFIG', 'AUTH', 'SYSTEM');
 
 -- CreateEnum
-CREATE TYPE "ConfigGroup" AS ENUM ('THRESHOLDS', 'AGENTS', 'SYSTEM');
+CREATE TYPE "ConfigGroup" AS ENUM ('THRESHOLDS', 'AGENTS', 'SYNTHETIC_CONTEXT');
+
+-- CreateEnum
+CREATE TYPE "ActionSource" AS ENUM ('WEB_UI', 'API', 'SYSTEM');
 
 -- CreateTable
 CREATE TABLE "bearings" (
@@ -58,7 +67,7 @@ CREATE TABLE "predictions" (
     "p_fail" DOUBLE PRECISION NOT NULL,
     "health_score" DOUBLE PRECISION NOT NULL,
     "uncertainty_score" DOUBLE PRECISION,
-    "fault_type" TEXT,
+    "fault_type" "FaultType",
     "fault_confidence" DOUBLE PRECISION,
     "stat_score" DOUBLE PRECISION,
     "rul_drop_score" DOUBLE PRECISION,
@@ -92,7 +101,7 @@ CREATE TABLE "decisions" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "snapshot_id" UUID NOT NULL,
     "decision_type" "DecisionType" NOT NULL,
-    "recommended_action" TEXT NOT NULL,
+    "recommended_action" "ActionType" NOT NULL,
     "recommended_confidence" DOUBLE PRECISION,
     "decision_status" "DecisionStatus" NOT NULL DEFAULT 'PENDING',
     "priority" "PriorityLevel" NOT NULL DEFAULT 'MEDIUM',
@@ -112,12 +121,12 @@ CREATE TABLE "decision_actions" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "decision_id" UUID NOT NULL,
     "action" "OperatorAction" NOT NULL,
-    "final_action" TEXT NOT NULL,
+    "final_action" "ActionType" NOT NULL,
     "override_reason" TEXT,
     "actor_user_id" UUID NOT NULL,
     "actor_role" TEXT NOT NULL,
     "submitted_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "source" TEXT NOT NULL,
+    "source" "ActionSource" NOT NULL,
 
     CONSTRAINT "decision_actions_pkey" PRIMARY KEY ("id")
 );
@@ -127,8 +136,8 @@ CREATE TABLE "override_preferences" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "decision_id" UUID NOT NULL,
     "snapshot_id" UUID NOT NULL,
-    "ai_recommended_action" TEXT NOT NULL,
-    "human_selected_action" TEXT NOT NULL,
+    "ai_recommended_action" "ActionType" NOT NULL,
+    "human_selected_action" "ActionType" NOT NULL,
     "override_reason" TEXT,
     "confidence_gap" DOUBLE PRECISION,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -143,7 +152,7 @@ CREATE TABLE "agent_transcripts" (
     "round_no" INTEGER NOT NULL,
     "agent_name" TEXT NOT NULL,
     "message_type" "AgentMessageType" NOT NULL,
-    "action_candidate" TEXT,
+    "action_candidate" "ActionType",
     "confidence" DOUBLE PRECISION,
     "reasoning_text" TEXT NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -255,7 +264,7 @@ ALTER TABLE "override_preferences" ADD CONSTRAINT "override_preferences_decision
 ALTER TABLE "agent_transcripts" ADD CONSTRAINT "agent_transcripts_snapshot_id_fkey" FOREIGN KEY ("snapshot_id") REFERENCES "snapshots"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "runtime_configs" ADD CONSTRAINT "runtime_configs_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "runtime_configs" ADD CONSTRAINT "runtime_configs_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_user_id_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
