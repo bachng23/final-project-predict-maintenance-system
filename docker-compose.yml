@@ -1,0 +1,104 @@
+networks:
+  smart_mfg_net:
+    driver: bridge
+
+services:
+  postgre_db:
+    image: postgres:16.13-alpine
+    container_name: postgres_db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smart_mfg_net
+
+  redis_cache:
+    image: redis:7.2.4-alpine
+    container_name: redis_cache
+    restart: always
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smart_mfg_net
+    
+  prometheus:
+    image: prom/prometheus:v3.10.0
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./yaml/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - smart_mfg_net
+
+  grafana:
+    image: grafana/grafana:12.4.2
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - smart_mfg_net
+
+  
+  adminer:
+    image: adminer:5.4.2
+    container_name: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgre_db
+    networks:
+      - smart_mfg_net
+  
+  redis_insight:
+    image: redis/redisinsight:3.2.0
+    container_name: redis_insight
+    restart: always
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis_cache
+    networks:
+      - smart_mfg_net
+      
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - smart_mfg_net
+    
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:  
