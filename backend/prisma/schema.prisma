@@ -108,7 +108,7 @@ model DecisionAction {
   actorRole      String         @map("actor_role")
   submittedAt    DateTime       @default(now()) @map("submitted_at") @db.Timestamptz(6)
   source         ActionSource   @map("source")
-  actor          User           @relation(fields: [actorUserId], references: [id])
+  actor          User           @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
   decision       Decision       @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
   @@map("decision_actions")
@@ -153,7 +153,7 @@ model RuntimeConfig {
   isActive        Boolean     @default(true) @map("is_active")
   updatedBy       String?     @map("updated_by") @db.Uuid
   updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
-  updater         User?       @relation(fields: [updatedBy], references: [id])
+  updater         User?       @relation(fields: [updatedBy], references: [id], onDelete: Restrict)
 
   @@map("runtime_configs")
 }
@@ -184,7 +184,7 @@ model AuditLog {
   actorUserId String?    @map("actor_user_id") @db.Uuid
   payloadJson Json?      @map("payload_json")
   createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  actor       User?      @relation(fields: [actorUserId], references: [id])
+  actor       User?      @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([entityType, entityId])
   @@index([createdAt(sort: Desc)])
