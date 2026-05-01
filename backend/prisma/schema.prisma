@@ -14,7 +14,7 @@ model Bearing {
   datasetSource    String        @map("dataset_source")
   conditionLabel   String        @map("condition_label")
   rpm              Int?
-  loadKn           Decimal?      @map("load_kn")
+  loadKn           Float?        @map("load_kn")
   installationDate DateTime?     @map("installation_date") @db.Timestamptz(6)
   status           BearingStatus @default(NORMAL)
   active           Boolean       @default(true)
@@ -31,22 +31,22 @@ model Prediction {
   bearingId        String     @map("bearing_id") @db.Uuid
   fileIdx          Int        @map("file_idx")
   sampleTs         DateTime   @map("sample_ts") @db.Timestamptz(6)
-  rulHours         Decimal    @map("rul_hours")
-  rulLowerHours    Decimal?   @map("rul_lower_hours")
-  rulUpperHours    Decimal?   @map("rul_upper_hours")
-  pFail            Decimal    @map("p_fail")
-  healthScore      Decimal    @map("health_score")
-  uncertaintyScore Decimal?   @map("uncertainty_score")
-  faultType        String?    @map("fault_type")
-  faultConfidence  Decimal?   @map("fault_confidence")
-  statScore        Decimal?   @map("stat_score")
-  rulDropScore     Decimal?   @map("rul_drop_score")
-  hybridScore      Decimal?   @map("hybrid_score")
-  thresholdTau     Decimal?   @map("threshold_tau")
+  rulHours         Float      @map("rul_hours")
+  rulLowerHours    Float?     @map("rul_lower_hours")
+  rulUpperHours    Float?     @map("rul_upper_hours")
+  pFail            Float      @map("p_fail")
+  healthScore      Float      @map("health_score")
+  uncertaintyScore Float?     @map("uncertainty_score")
+  faultType        FaultType? @map("fault_type")
+  faultConfidence  Float?     @map("fault_confidence")
+  statScore        Float?     @map("stat_score")
+  rulDropScore     Float?     @map("rul_drop_score")
+  hybridScore      Float?     @map("hybrid_score")
+  thresholdTau     Float?     @map("threshold_tau")
   modelVersion     String     @map("model_version")
   pipelineRunId    String?    @map("pipeline_run_id")
   createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  bearing          Bearing    @relation(fields: [bearingId], references: [id], onDelete: Cascade)
+  bearing          Bearing    @relation(fields: [bearingId], references: [id], onDelete: Restrict)
   snapshots        Snapshot[]
 
   @@unique([bearingId, fileIdx, modelVersion])
@@ -68,8 +68,8 @@ model Snapshot {
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   agentTranscripts AgentTranscript[]
   decision         Decision?
-  bearing          Bearing           @relation(fields: [bearingId], references: [id], onDelete: Cascade)
-  prediction       Prediction        @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  bearing          Bearing           @relation(fields: [bearingId], references: [id], onDelete: Restrict)
+  prediction       Prediction        @relation(fields: [predictionId], references: [id], onDelete: Restrict)
 
   @@index([bearingId, snapshotTs(sort: Desc)])
   @@map("snapshots")
@@ -78,9 +78,9 @@ model Snapshot {
 model Decision {
   id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   snapshotId            String               @unique @map("snapshot_id") @db.Uuid
-  decisionType          String               @map("decision_type")
-  recommendedAction     String               @map("recommended_action")
-  recommendedConfidence Decimal?             @map("recommended_confidence")
+  decisionType          DecisionType         @map("decision_type")
+  recommendedAction     ActionType           @map("recommended_action")
+  recommendedConfidence Float?               @map("recommended_confidence")
   decisionStatus        DecisionStatus       @default(PENDING) @map("decision_status")
   priority              PriorityLevel        @default(MEDIUM)
   safetyVeto            Boolean              @default(false) @map("safety_veto")
@@ -91,9 +91,10 @@ model Decision {
   createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   decisionActions       DecisionAction[]
-  snapshot              Snapshot             @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  snapshot              Snapshot             @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
   overridePreferences   OverridePreference[]
 
+  @@index([decisionStatus])
   @@map("decisions")
 }
 
@@ -101,28 +102,28 @@ model DecisionAction {
   id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   decisionId     String         @map("decision_id") @db.Uuid
   action         OperatorAction
-  finalAction    String         @map("final_action")
+  finalAction    ActionType     @map("final_action")
   overrideReason String?        @map("override_reason")
   actorUserId    String         @map("actor_user_id") @db.Uuid
   actorRole      String         @map("actor_role")
   submittedAt    DateTime       @default(now()) @map("submitted_at") @db.Timestamptz(6)
-  source         String
+  source         ActionSource   @map("source")
   actor          User           @relation(fields: [actorUserId], references: [id])
-  decision       Decision       @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  decision       Decision       @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
   @@map("decision_actions")
 }
 
 model OverridePreference {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  decisionId          String   @map("decision_id") @db.Uuid
-  snapshotId          String   @map("snapshot_id") @db.Uuid
-  aiRecommendedAction String   @map("ai_recommended_action")
-  humanSelectedAction String   @map("human_selected_action")
-  overrideReason      String?  @map("override_reason")
-  confidenceGap       Decimal? @map("confidence_gap")
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  decision            Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  decisionId          String     @map("decision_id") @db.Uuid
+  snapshotId          String     @map("snapshot_id") @db.Uuid
+  aiRecommendedAction ActionType @map("ai_recommended_action")
+  humanSelectedAction ActionType @map("human_selected_action")
+  overrideReason      String?    @map("override_reason")
+  confidenceGap       Float?     @map("confidence_gap")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  decision            Decision   @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
   @@map("override_preferences")
 }
@@ -133,26 +134,26 @@ model AgentTranscript {
   roundNo         Int              @map("round_no")
   agentName       String           @map("agent_name")
   messageType     AgentMessageType @map("message_type")
-  actionCandidate String?          @map("action_candidate")
-  confidence      Decimal?         @map("confidence")
+  actionCandidate ActionType?      @map("action_candidate")
+  confidence      Float?           @map("confidence")
   reasoningText   String           @map("reasoning_text")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  snapshot        Snapshot         @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  snapshot        Snapshot         @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
 
   @@index([snapshotId, roundNo, createdAt])
   @@map("agent_transcripts")
 }
 
 model RuntimeConfig {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  configGroup     String   @map("config_group")
-  configKey       String   @map("config_key")
-  configValueJson Json     @map("config_value_json")
-  versionNo       Int      @map("version_no")
-  isActive        Boolean  @default(true) @map("is_active")
-  updatedBy       String?  @map("updated_by") @db.Uuid
-  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-  updater         User?    @relation(fields: [updatedBy], references: [id])
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  configGroup     ConfigGroup @map("config_group")
+  configKey       String      @unique @map("config_key")
+  configValueJson Json        @map("config_value_json")
+  versionNo       Int         @map("version_no")
+  isActive        Boolean     @default(true) @map("is_active")
+  updatedBy       String?     @map("updated_by") @db.Uuid
+  updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updater         User?       @relation(fields: [updatedBy], references: [id])
 
   @@map("runtime_configs")
 }
@@ -176,15 +177,16 @@ model User {
 }
 
 model AuditLog {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entityType  String   @map("entity_type")
-  entityId    String   @map("entity_id")
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType  EntityType @map("entity_type")
+  entityId    String     @map("entity_id")
   action      String
-  actorUserId String?  @map("actor_user_id") @db.Uuid
-  payloadJson Json?    @map("payload_json")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  actor       User?    @relation(fields: [actorUserId], references: [id])
+  actorUserId String?    @map("actor_user_id") @db.Uuid
+  payloadJson Json?      @map("payload_json")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor       User?      @relation(fields: [actorUserId], references: [id])
 
+  @@index([entityType, entityId])
   @@index([createdAt(sort: Desc)])
   @@map("audit_logs")
 }
@@ -198,10 +200,25 @@ enum BearingStatus {
   OFFLINE
 }
 
+enum FaultType {
+  INNER_RACE
+  OUTER_RACE
+  BALL
+  CAGE
+  UNKNOWN
+}
+
 enum DecisionStatus {
   PENDING
   RESOLVED
   ACKNOWLEDGED
+}
+
+enum ActionType {
+  CONTINUE
+  INSPECT
+  MAINTAIN
+  STOP
 }
 
 enum OperatorAction {
@@ -237,4 +254,30 @@ enum UserRole {
   OPERATOR
   ENGINEER
   ADMIN
+}
+
+enum DecisionType {
+  MAINTENANCE
+  INSPECTION
+  REPLACEMENT
+  IGNORE
+}
+
+enum EntityType {
+  DECISION
+  CONFIG
+  AUTH
+  SYSTEM
+}
+
+enum ConfigGroup {
+  THRESHOLDS
+  AGENTS
+  SYNTHETIC_CONTEXT
+}
+
+enum ActionSource {
+  WEB_UI
+  API
+  SYSTEM
 }

@@ -19,9 +19,17 @@ app.use('/api', routes);
 // Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).send({
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
+  
+  const statusCode = err.message === 'UNAUTHORIZED' ? 401 : 
+                     err.message === 'FORBIDDEN' ? 403 : 
+                     err.message.includes('NOT_FOUND') ? 404 : 500;
+
+  res.status(statusCode).json({
+    error: {
+      code: err.message || 'INTERNAL_ERROR',
+      message: err.message || 'Something went wrong!',
+      detail: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    }
   });
 });
 
