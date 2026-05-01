@@ -31,26 +31,43 @@ model Prediction {
   bearingId        String     @map("bearing_id") @db.Uuid
   fileIdx          Int        @map("file_idx")
   sampleTs         DateTime   @map("sample_ts") @db.Timestamptz(6)
-  rulHours         Float      @map("rul_hours")
-  rulLowerHours    Float?     @map("rul_lower_hours")
-  rulUpperHours    Float?     @map("rul_upper_hours")
+
+  // RUL — đơn vị minutes (giữ nguyên model output, không convert)
+  rulMinutes       Float      @map("rul_minutes")
+  rulLowerMinutes  Float?     @map("rul_lower_minutes")
+  rulUpperMinutes  Float?     @map("rul_upper_minutes")
+  rulUncertainty   Float?     @map("rul_uncertainty")   // raw score, vd. 0.019
+
+  // Core predictions
   pFail            Float      @map("p_fail")
-  healthScore      Float      @map("health_score")
-  uncertaintyScore Float?     @map("uncertainty_score")
+  healthScore      Float      @map("health_score")       // [0, 100] = model × 100
+
+  // Extra model signals
+  degradationRate  Float?     @map("degradation_rate")
+  oodFlag          Boolean?   @map("ood_flag")
+
+  // Fault detection — tính bởi fault_detector.py
   faultType        FaultType? @map("fault_type")
   faultConfidence  Float?     @map("fault_confidence")
+
+  // Anomaly scores — anomaly service UPDATE sau khi predictor INSERT
   statScore        Float?     @map("stat_score")
   rulDropScore     Float?     @map("rul_drop_score")
   hybridScore      Float?     @map("hybrid_score")
   thresholdTau     Float?     @map("threshold_tau")
+
+  // Metadata
   modelVersion     String     @map("model_version")
   pipelineRunId    String?    @map("pipeline_run_id")
   createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
   bearing          Bearing    @relation(fields: [bearingId], references: [id], onDelete: Restrict)
   snapshots        Snapshot[]
 
   @@unique([bearingId, fileIdx, modelVersion])
+  @@index([bearingId, fileIdx(sort: Desc)])
   @@index([bearingId, sampleTs(sort: Desc)])
+  @@index([hybridScore(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("predictions")
 }
