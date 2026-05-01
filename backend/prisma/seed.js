@@ -57,7 +57,7 @@ async function main() {
       bearingId: bearing.id,
       fileIdx: 1,
       sampleTs: new Date(),
-      rulHours: 150.5,
+      rulMinutes: 9030.0,
       pFail: 0.05,
       healthScore: 92.0,
       modelVersion: 'v1.0.0',

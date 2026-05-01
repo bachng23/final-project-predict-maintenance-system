@@ -1,4 +1,4 @@
-3-- CreateEnum
+-- CreateEnum
 CREATE TYPE "BearingStatus" AS ENUM ('NORMAL', 'INSPECT', 'NEGOTIATE', 'MAINTAIN', 'STOP', 'OFFLINE');
 
 -- CreateEnum
