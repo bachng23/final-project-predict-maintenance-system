@@ -3,30 +3,97 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const routes = require('./routes');
+const requestContextMiddleware = require('./middlewares/request-context');
+const { sendError } = require('./utils/response');
+const { ErrorCodes } = require('./utils/errors');
 
 const app = express();
 
-// Middlewares
+// ============================================================================
+// Middlewares - Order matters!
+// ============================================================================
+
+// Add request ID to all requests
+app.use(requestContextMiddleware);
+
+// Security headers
 app.use(helmet());
-app.use(cors());
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+}));
+
+// HTTP request logging
 app.use(morgan('dev'));
+
+// Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ============================================================================
 // Routes
+// ============================================================================
+
+// All API routes go through /api prefix
 app.use('/api', routes);
-// Xử lý Route Not Found (404)
+
+// ============================================================================
+// Error Handling
+// ============================================================================
+
+// 404 Not Found handler
 app.use((req, res, next) => {
-  res.status(404).json({ message: 'Route không tồn tại!' });
+  return sendError(
+    res,
+    'NOT_FOUND',
+    `Route ${req.method} ${req.path} not found`,
+    null,
+    404,
+    req.requestId
+  );
 });
 
-// Error Handling Middleware
+// Global error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send({
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
-  });
+  console.error('Unhandled error:', err);
+
+  // Handle specific error types
+  if (err.name === 'ValidationError') {
+    return sendError(
+      res,
+      ErrorCodes.INVALID_CONFIG_VALUE,
+      'Validation error',
+      err.message,
+      400,
+      req.requestId
+    );
+  }
+
+  if (err.name === 'PrismaClientKnownRequestError') {
+    console.error('Prisma error:', err.code);
+    return sendError(
+      res,
+      ErrorCodes.INTERNAL_ERROR,
+      'Database operation failed',
+      process.env.NODE_ENV === 'development' ? err.message : 'Unknown error',
+      500,
+      req.requestId
+    );
+  }
+
+  // Generic error response
+  return sendError(
+    res,
+    ErrorCodes.INTERNAL_ERROR,
+    'Internal server error',
+    process.env.NODE_ENV === 'development' ? err.message : undefined,
+    err.statusCode || 500,
+    req.requestId
+  );
 });
 
 module.exports = app;
