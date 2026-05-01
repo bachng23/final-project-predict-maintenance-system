@@ -1,5 +1,5 @@
 networks:
-  smart_mfg_net:
+  predictive_maintenance_net:
     driver: bridge
 
 services:
@@ -18,50 +18,227 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - smart_mfg_net
+      - predictive_maintenance_net
 
   redis_cache:
     image: redis:7.2.4-alpine
     container_name: redis_cache
     restart: always
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - smart_mfg_net
-    
+      - predictive_maintenance_net
+
+  redpanda:
+    image: redpandadata/redpanda:v25.2.12
+    container_name: redpanda
+    restart: always
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    networks:
+      - predictive_maintenance_net
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - predictive_maintenance_net
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.7.0
+    container_name: mlflow
+    restart: always
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/${POSTGRES_DB}
+      --default-artifact-root s3://mlflow/
+      --host 0.0.0.0
+      --port 5000
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgre_db
+      - minio
+    networks:
+      - predictive_maintenance_net
+
+  #ollama:
+    #image: ollama/ollama:0.20.7
+    #container_name: ollama
+    #restart: always
+    #ports:
+      #- "11434:11434"
+    #volumes:
+      #- ollama_data:/root/.ollama
+    #networks:
+      #- predictive_maintenance_net
+
+  clickhouse:
+    image: clickhouse:25.8.21.7-jammy
+    container_name: clickhouse
+    restart: always
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+    ports:
+      - "8123:8123"
+      - "9009:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    networks:
+      - predictive_maintenance_net
+
+  langfuse_worker:
+    image: langfuse/langfuse-worker:3
+    container_name: langfuse_worker
+    restart: always
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - clickhouse
+      - minio
+    environment:
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/${POSTGRES_DB}
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+    networks:
+      - predictive_maintenance_net
+
+  langfuse:
+    image: langfuse/langfuse:3
+    container_name: langfuse
+    restart: always
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - clickhouse
+      - minio
+      - langfuse_worker
+    environment:
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${LANGFUSE_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/${POSTGRES_DB}
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+    ports:
+      - "3000:3000"
+    networks:
+      - predictive_maintenance_net
+
   prometheus:
-    image: prom/prometheus:v3.10.0
+    image: prom/prometheus:v3.11.2
     container_name: prometheus
     restart: always
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
     ports:
       - "9090:9090"
     volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-      - ./yaml/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - redpanda
     networks:
-      - smart_mfg_net
+      - predictive_maintenance_net
 
   grafana:
-    image: grafana/grafana:12.4.2
+    image: grafana/grafana:12.4.0
     container_name: grafana
     restart: always
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env
     environment:
-      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
-      - smart_mfg_net
-
+      - predictive_maintenance_net
   
   adminer:
     image: adminer:5.4.2
@@ -72,7 +249,7 @@ services:
     depends_on:
       - postgre_db
     networks:
-      - smart_mfg_net
+      - predictive_maintenance_net
   
   redis_insight:
     image: redis/redisinsight:3.2.0
@@ -83,22 +260,15 @@ services:
     depends_on:
       - redis_cache
     networks:
-      - smart_mfg_net
-      
-  nginx:
-    image: nginx:alpine
-    container_name: nginx_proxy
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    networks:
-      - smart_mfg_net
+      - predictive_maintenance_net
+  
     
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
+  ollama_data:
+  clickhouse_data:
+  clickhouse_logs:
   prometheus_data:
-  grafana_data:  
+  grafana_data:
