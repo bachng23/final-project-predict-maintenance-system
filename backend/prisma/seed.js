@@ -44,8 +44,16 @@ async function main() {
   console.log('Sample bearing created:', bearing.bearingId);
 
   // 3. Create Sample Prediction
-  const prediction = await prisma.prediction.create({
-    data: {
+  const prediction = await prisma.prediction.upsert({
+    where: {
+      bearingId_fileIdx_modelVersion: {
+        bearingId: bearing.id,
+        fileIdx: 1,
+        modelVersion: 'v1.0.0',
+      },
+    },
+    update: {},
+    create: {
       bearingId: bearing.id,
       fileIdx: 1,
       sampleTs: new Date(),
@@ -55,11 +63,16 @@ async function main() {
       modelVersion: 'v1.0.0',
     },
   });
-  console.log('Sample prediction created');
+  console.log('Sample prediction created/updated');
 
   // 4. Create Sample Snapshot
-  const snapshot = await prisma.snapshot.create({
-    data: {
+  const snapshot = await prisma.snapshot.upsert({
+    where: {
+      id: '00000000-0000-0000-0000-000000000001', 
+    },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000001',
       bearingId: bearing.id,
       predictionId: prediction.id,
       snapshotTs: new Date(),
@@ -67,11 +80,13 @@ async function main() {
       triggerSource: 'ANOMALY_TRIGGER',
     },
   });
-  console.log('Sample snapshot created');
+  console.log('Sample snapshot created/updated');
 
   // 5. Create Sample Decision
-  await prisma.decision.create({
-    data: {
+  await prisma.decision.upsert({
+    where: { snapshotId: snapshot.id },
+    update: {},
+    create: {
       snapshotId: snapshot.id,
       decisionType: 'INSPECTION',
       recommendedAction: 'INSPECT',
@@ -81,7 +96,7 @@ async function main() {
       reasonSummary: 'Abnormal vibration patterns detected in latest cycle.',
     },
   });
-  console.log('Sample decision created');
+  console.log('Sample decision created/updated');
 
   // 6. Create Runtime Configs
   await prisma.runtimeConfig.upsert({

@@ -6,32 +6,60 @@ const routes = require('./routes');
 
 const app = express();
 
-// Middlewares
+// Global Middlewares
 app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// API Routes
 app.use('/api', routes);
-// Xử lý Route Not Found (404)
+
+// Handle Route Not Found (404)
 app.use((req, res, next) => {
-  res.status(404).json({ message: 'Route không tồn tại!' });
+  res.status(404).json({ 
+    success: false,
+    message: `Route ${req.originalUrl} not found!` 
+  });
 });
 
-// Error Handling Middleware
+// Global Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   
-  const statusCode = err.message === 'UNAUTHORIZED' ? 401 : 
-                     err.message === 'FORBIDDEN' ? 403 : 
-                     err.message.includes('NOT_FOUND') ? 404 : 500;
+  let statusCode = 500;
+  let errorCode = 'INTERNAL_ERROR';
+
+  // Map error messages to HTTP status codes
+  if (err.message === 'UNAUTHORIZED') {
+    statusCode = 401;
+    errorCode = 'UNAUTHORIZED';
+  } else if (err.message === 'FORBIDDEN') {
+    statusCode = 403;
+    errorCode = 'FORBIDDEN';
+  } else if (err.message.includes('NOT_FOUND')) {
+    statusCode = 404;
+    errorCode = 'NOT_FOUND';
+  } else if (err.name === 'ValidationError') {
+    statusCode = 400;
+    errorCode = 'VALIDATION_ERROR';
+  } else if (err.name === 'PrismaClientKnownRequestError') {
+    // Handle Prisma specific errors
+    if (err.code === 'P2002') {
+      statusCode = 409;
+      errorCode = 'DUPLICATE_ENTRY';
+    } else if (err.code === 'P2025') {
+      statusCode = 404;
+      errorCode = 'RECORD_NOT_FOUND';
+    }
+  }
 
   res.status(statusCode).json({
+    success: false,
     error: {
-      code: err.message || 'INTERNAL_ERROR',
-      message: err.message || 'Something went wrong!',
+      code: errorCode,
+      message: err.message || 'An unexpected error occurred',
       detail: process.env.NODE_ENV === 'development' ? err.stack : undefined
     }
   });
