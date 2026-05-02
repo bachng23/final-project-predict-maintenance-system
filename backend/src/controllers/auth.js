@@ -1,7 +1,9 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const prisma = require('../services/prisma');
+const database = require('../services/database');
+const usersRepository = require('../repositories/users');
+const refreshTokensRepository = require('../repositories/refresh-tokens');
 const { AppError } = require('../utils/errors');
 const { sendSuccess } = require('../utils/response');
 
@@ -83,14 +85,12 @@ function publicUser(user) {
   };
 }
 
-async function persistRefreshToken(userId, refreshToken, expiresAt, transactionClient = prisma) {
-  return transactionClient.refreshToken.create({
-    data: {
-      userId,
-      tokenHash: getTokenHash(refreshToken),
-      expiresAt
-    }
-  });
+async function persistRefreshToken(userId, refreshToken, expiresAt, transactionClient = database) {
+  return refreshTokensRepository.create({
+    userId,
+    tokenHash: getTokenHash(refreshToken),
+    expiresAt
+  }, transactionClient);
 }
 
 async function login(req, res) {
@@ -100,19 +100,7 @@ async function login(req, res) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Username and password are required');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { username },
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      fullName: true,
-      passwordHash: true,
-      role: true,
-      active: true,
-      lastLoginAt: true
-    }
-  });
+  const user = await usersRepository.findByUsername(username);
 
   if (!user || !user.active) {
     throw new AppError(401, 'UNAUTHORIZED', 'Invalid username or password');
@@ -127,14 +115,8 @@ async function login(req, res) {
   const loginAt = new Date();
   const tokenPair = createTokenPair(user);
 
-  await prisma.$transaction(async (transaction) => {
-    await transaction.user.update({
-      where: { id: user.id },
-      data: {
-        lastLoginAt: loginAt
-      }
-    });
-
+  await database.transaction(async (transaction) => {
+    await usersRepository.updateLastLoginAt(user.id, loginAt, transaction);
     await persistRefreshToken(user.id, tokenPair.refreshToken, tokenPair.refreshTokenExpiresAt, transaction);
   });
 
@@ -167,22 +149,7 @@ async function refresh(req, res) {
     throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired refresh token');
   }
 
-  const tokenRecord = await prisma.refreshToken.findUnique({
-    where: { tokenHash: getTokenHash(refreshToken) },
-    include: {
-      user: {
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          fullName: true,
-          role: true,
-          active: true,
-          lastLoginAt: true
-        }
-      }
-    }
-  });
+  const tokenRecord = await refreshTokensRepository.findByTokenHashWithUser(getTokenHash(refreshToken));
 
   if (
     !tokenRecord ||
@@ -206,14 +173,8 @@ async function refresh(req, res) {
   });
   const decodedNextRefreshToken = jwt.decode(nextRefreshToken);
 
-  await prisma.$transaction(async (transaction) => {
-    await transaction.refreshToken.update({
-      where: { id: tokenRecord.id },
-      data: {
-        revokedAt: new Date()
-      }
-    });
-
+  await database.transaction(async (transaction) => {
+    await refreshTokensRepository.revokeById(tokenRecord.id, new Date(), transaction);
     await persistRefreshToken(
       tokenRecord.user.id,
       nextRefreshToken,
@@ -237,17 +198,10 @@ async function logout(req, res) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Refresh token is required');
   }
 
-  const tokenRecord = await prisma.refreshToken.findUnique({
-    where: { tokenHash: getTokenHash(refreshToken) }
-  });
+  const tokenRecord = await refreshTokensRepository.findByTokenHash(getTokenHash(refreshToken));
 
   if (tokenRecord && !tokenRecord.revokedAt) {
-    await prisma.refreshToken.update({
-      where: { id: tokenRecord.id },
-      data: {
-        revokedAt: new Date()
-      }
-    });
+    await refreshTokensRepository.revokeById(tokenRecord.id);
   }
 
   return sendSuccess(res, {
