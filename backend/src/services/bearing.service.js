@@ -63,6 +63,57 @@ const getAllBearingsWithLatestStatus = async () => {
   });
 };
 
+/**
+ * Get prediction history for a specific bearing
+ * @param {string} bearingId - Internal UUID of the bearing
+ * @param {Object} filters - Optional filters (limit, startDate, endDate)
+ * @returns {Promise<Array>}
+ */
+const getPredictionsByBearingId = async (bearingId, filters = {}) => {
+  const { limit = 100, startDate, endDate } = filters;
+  
+  const where = {
+    bearingId: bearingId,
+  };
+
+  if (startDate || endDate) {
+    where.sampleTs = {};
+    if (startDate) where.sampleTs.gte = new Date(startDate);
+    if (endDate) where.sampleTs.lte = new Date(endDate);
+  }
+
+  const predictions = await prisma.prediction.findMany({
+    where,
+    orderBy: {
+      sampleTs: 'desc',
+    },
+    take: limit,
+  });
+
+  // Transform to follow the 'Prediction Detail' contract
+  return predictions.map((p) => ({
+    prediction_id: p.id,
+    bearing_id: p.bearingId,
+    file_idx: p.fileIdx,
+    sample_ts: p.sampleTs,
+    rul_hours: p.rulMinutes ? p.rulMinutes / 60 : null,
+    rul_lower_hours: p.rulLowerMinutes ? p.rulLowerMinutes / 60 : null,
+    rul_upper_hours: p.rulUpperMinutes ? p.rulUpperMinutes / 60 : null,
+    p_fail: p.pFail,
+    health_score: p.healthScore,
+    uncertainty_score: p.rulUncertainty,
+    fault_type: p.faultType,
+    fault_confidence: p.faultConfidence,
+    stat_score: p.statScore,
+    rul_drop_score: p.rulDropScore,
+    hybrid_score: p.hybridScore,
+    threshold_tau: p.thresholdTau,
+    model_version: p.modelVersion,
+    created_at: p.createdAt,
+  }));
+};
+
 module.exports = {
   getAllBearingsWithLatestStatus,
+  getPredictionsByBearingId,
 };
