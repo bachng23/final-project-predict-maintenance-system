@@ -5,7 +5,7 @@ networks:
 services:
   postgre_db:
     image: postgres:16.13-alpine
-    container_name: postgres_db
+    container_name: postgre_db
     restart: always
     env_file:
       - .env
@@ -136,7 +136,7 @@ services:
       - minio
     environment:
       NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3000}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/langfuse-db
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
       TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
@@ -176,7 +176,7 @@ services:
     environment:
       NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3000}
       NEXTAUTH_SECRET: ${LANGFUSE_SECRET}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/langfuse-db
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
       TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-false}
