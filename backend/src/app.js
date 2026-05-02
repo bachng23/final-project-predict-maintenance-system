@@ -30,6 +30,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Routes
 app.use('/api', routes);
+// Xử lý Route Not Found (404)
+app.use((req, res, next) => {
+  res.status(404).json({ message: 'Route không tồn tại!' });
+});
 
 // Handle Route Not Found (404)
 app.use((req, res, next) => {
