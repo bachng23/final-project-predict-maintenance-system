@@ -5,7 +5,8 @@
 
 const express = require('express');
 const authRoutes = require('./auth');
-const { sendSuccess } = require('../utils/response');
+const { sendSuccess, sendError } = require('../utils/response');
+const { ErrorCodes } = require('../utils/errors');
 
 const router = express.Router();
 
@@ -42,12 +43,14 @@ router.use('/v1', v1Router);
  * Default 404 for /api routes
  */
 router.use((req, res) => {
-  res.status(404).json({
-    error: {
-      code: 'NOT_FOUND',
-      message: `Route ${req.method} ${req.path} not found`,
-    },
-  });
+  return sendError(
+    res,
+    ErrorCodes.NOT_FOUND,
+    `Route ${req.method} ${req.path} not found`,
+    null,
+    404,
+    req.requestId
+  );
 });
 
 module.exports = router;

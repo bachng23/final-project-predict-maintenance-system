@@ -1,0 +1,22 @@
+[
+  {
+    "id": "user-1",
+    "username": "admin",
+    "passwordHash": "$2b$10$YJlXuNV.PrL0HvGNDJ0yre6eP7.KuLLQnl6tQvQ0X7L5JH8vvFSm2",
+    "fullName": "Admin User",
+    "email": "admin@example.com",
+    "role": "ADMIN",
+    "active": true,
+    "lastLoginAt": null
+  },
+  {
+    "id": "user-2",
+    "username": "operator",
+    "passwordHash": "$2b$10$YJlXuNV.PrL0HvGNDJ0yre6eP7.KuLLQnl6tQvQ0X7L5JH8vvFSm2",
+    "fullName": "Operator User",
+    "email": "operator@example.com",
+    "role": "OPERATOR",
+    "active": true,
+    "lastLoginAt": null
+  }
+]

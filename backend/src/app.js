@@ -49,7 +49,7 @@ app.use('/api', routes);
 app.use((req, res, next) => {
   return sendError(
     res,
-    'NOT_FOUND',
+    ErrorCodes.NOT_FOUND,
     `Route ${req.method} ${req.path} not found`,
     null,
     404,
@@ -69,18 +69,6 @@ app.use((err, req, res, next) => {
       'Validation error',
       err.message,
       400,
-      req.requestId
-    );
-  }
-
-  if (err.name === 'PrismaClientKnownRequestError') {
-    console.error('Prisma error:', err.code);
-    return sendError(
-      res,
-      ErrorCodes.INTERNAL_ERROR,
-      'Database operation failed',
-      process.env.NODE_ENV === 'development' ? err.message : 'Unknown error',
-      500,
       req.requestId
     );
   }
