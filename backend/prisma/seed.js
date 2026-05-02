@@ -57,9 +57,14 @@ async function main() {
       bearingId: bearing.id,
       fileIdx: 1,
       sampleTs: new Date(),
-      rulMinutes: 9030.0,
+      rulMinutes: 150.5,
+      rulLowerMinutes: 140.0,
+      rulUpperMinutes: 161.0,
+      rulUncertainty: 0.02,
       pFail: 0.05,
       healthScore: 92.0,
+      degradationRate: 0.001,
+      oodFlag: false,
       modelVersion: 'v1.0.0',
     },
   });
@@ -68,7 +73,7 @@ async function main() {
   // 4. Create Sample Snapshot
   const snapshot = await prisma.snapshot.upsert({
     where: {
-      id: '00000000-0000-0000-0000-000000000001', 
+      id: '00000000-0000-0000-0000-000000000001',
     },
     update: {},
     create: {
