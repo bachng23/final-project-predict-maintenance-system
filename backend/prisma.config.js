@@ -1,16 +1,13 @@
-require('dotenv').config();
-let defineConfig = (config) => config;
+require('dotenv/config');
 
-try {
-  ({ defineConfig } = require('@prisma/config'));
-} catch (error) {
-  // Fallback for environments where Prisma's optional config helper
-  // has not been installed yet.
-}
+const { defineConfig, env } = require('prisma/config');
 
 module.exports = defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
-    seed: 'node prisma/seed.js',
+    seed: 'node prisma/seed.js'
   },
+  datasource: {
+    url: env('DATABASE_URL')
+  }
 });
