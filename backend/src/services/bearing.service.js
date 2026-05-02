@@ -63,47 +63,6 @@ const getAllBearingsWithLatestStatus = async () => {
   });
 };
 
-/**
- * Get prediction history for a specific bearing
- * @param {string} bearingId - Internal UUID of the bearing
- * @param {number} limit - Number of records to return
- * @returns {Promise<Array>}
- */
-const getPredictionsByBearingId = async (bearingId, limit = 100) => {
-  const predictions = await prisma.prediction.findMany({
-    where: {
-      bearingId: bearingId,
-    },
-    orderBy: {
-      sampleTs: 'desc',
-    },
-    take: limit,
-  });
-
-  // Transform to follow the 'Prediction Detail' contract
-  return predictions.map((p) => ({
-    prediction_id: p.id,
-    bearing_id: p.bearingId,
-    file_idx: p.fileIdx,
-    sample_ts: p.sampleTs,
-    rul_hours: p.rulMinutes ? p.rulMinutes / 60 : null,
-    rul_lower_hours: p.rulLowerMinutes ? p.rulLowerMinutes / 60 : null,
-    rul_upper_hours: p.rulUpperMinutes ? p.rulUpperMinutes / 60 : null,
-    p_fail: p.pFail,
-    health_score: p.healthScore,
-    uncertainty_score: p.rulUncertainty,
-    fault_type: p.faultType,
-    fault_confidence: p.faultConfidence,
-    stat_score: p.statScore,
-    rul_drop_score: p.rulDropScore,
-    hybrid_score: p.hybridScore,
-    threshold_tau: p.thresholdTau,
-    model_version: p.modelVersion,
-    created_at: p.createdAt,
-  }));
-};
-
 module.exports = {
   getAllBearingsWithLatestStatus,
-  getPredictionsByBearingId,
 };
