@@ -73,7 +73,7 @@ async function main() {
   // 4. Create Sample Snapshot
   const snapshot = await prisma.snapshot.upsert({
     where: {
-      id: '00000000-0000-0000-0000-000000000001', 
+      id: '00000000-0000-0000-0000-000000000001',
     },
     update: {},
     create: {
