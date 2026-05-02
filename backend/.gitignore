@@ -3,3 +3,7 @@ node_modules
 .DS_Store
 dist
 *.log
+<<<<<<< HEAD
+=======
+*.md
+>>>>>>> 48c12d126afcf34b7beb469985f60eceadb84c9a

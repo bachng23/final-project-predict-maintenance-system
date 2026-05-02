@@ -1,0 +1,10 @@
+[project]
+name = "ai-services"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.10"
+dependencies = [
+    "datetime>=6.0",
+    "pydantic>=2.13.3",
+]

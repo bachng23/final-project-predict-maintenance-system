@@ -10,19 +10,33 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js"
   },
+<<<<<<< HEAD
   "prisma": {
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
+=======
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^3.0.3",
+>>>>>>> 48c12d126afcf34b7beb469985f60eceadb84c9a
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
+<<<<<<< HEAD
+=======
+    "jsonwebtoken": "^9.0.3",
+>>>>>>> 48c12d126afcf34b7beb469985f60eceadb84c9a
     "morgan": "^1.10.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
+<<<<<<< HEAD
+=======
+    "@prisma/config": "^6.19.3",
+>>>>>>> 48c12d126afcf34b7beb469985f60eceadb84c9a
     "prisma": "^6.2.1"
   }
 }
