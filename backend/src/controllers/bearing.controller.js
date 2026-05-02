@@ -25,9 +25,13 @@ const getBearings = async (req, res, next) => {
 const getBearingPredictions = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const limit = parseInt(req.query.limit) || 100;
+    const { limit, start_date, end_date } = req.query;
 
-    const predictions = await bearingService.getPredictionsByBearingId(id, limit);
+    const predictions = await bearingService.getPredictionsByBearingId(id, {
+      limit: parseInt(limit) || 100,
+      startDate: start_date,
+      endDate: end_date
+    });
 
     res.json({
       success: true,

@@ -66,14 +66,24 @@ const getAllBearingsWithLatestStatus = async () => {
 /**
  * Get prediction history for a specific bearing
  * @param {string} bearingId - Internal UUID of the bearing
- * @param {number} limit - Number of records to return
+ * @param {Object} filters - Optional filters (limit, startDate, endDate)
  * @returns {Promise<Array>}
  */
-const getPredictionsByBearingId = async (bearingId, limit = 100) => {
+const getPredictionsByBearingId = async (bearingId, filters = {}) => {
+  const { limit = 100, startDate, endDate } = filters;
+  
+  const where = {
+    bearingId: bearingId,
+  };
+
+  if (startDate || endDate) {
+    where.sampleTs = {};
+    if (startDate) where.sampleTs.gte = new Date(startDate);
+    if (endDate) where.sampleTs.lte = new Date(endDate);
+  }
+
   const predictions = await prisma.prediction.findMany({
-    where: {
-      bearingId: bearingId,
-    },
+    where,
     orderBy: {
       sampleTs: 'desc',
     },
