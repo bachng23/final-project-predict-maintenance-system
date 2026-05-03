@@ -44,6 +44,18 @@ export type DashboardData = {
   source: "backend" | "demo";
 };
 
+export type HealthCheck = {
+  ok: boolean;
+  service: string;
+  checkedAt: string;
+};
+
+export type BearingDetailData = {
+  bearing: BearingSummary;
+  telemetry: TelemetryPoint[];
+  source: "backend" | "demo";
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 
 function endpoint(path: string) {
@@ -322,4 +334,30 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardDat
   }
 
   return demoDashboard();
+}
+
+export async function fetchBearingDetail(id: string, signal?: AbortSignal): Promise<BearingDetailData> {
+  try {
+    const [bearingRaw, telemetryRaw] = await Promise.all([
+      getJson(`/api/bearings/${encodeURIComponent(id)}`, signal),
+      getJson(`/api/bearings/${encodeURIComponent(id)}/telemetry?range=24h`, signal),
+    ]);
+
+    return {
+      bearing: normalizeBearing(asRecord(bearingRaw).bearing ?? bearingRaw),
+      telemetry: unwrapArray(telemetryRaw, ["telemetry", "series", "timeSeries", "data"]).map(normalizeTelemetryPoint),
+      source: "backend",
+    };
+  } catch {
+    const fallbackBearing = demoBearings.find((bearing) => bearing.id === id) ?? demoBearings[0];
+    return {
+      bearing: fallbackBearing,
+      telemetry: demoTelemetry(demoBearings.findIndex((bearing) => bearing.id === fallbackBearing.id)),
+      source: "demo",
+    };
+  }
+}
+
+export async function fetchHealth(signal?: AbortSignal): Promise<HealthCheck> {
+  return getJson<HealthCheck>("/api/health", signal);
 }

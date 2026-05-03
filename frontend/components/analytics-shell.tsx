@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type AnalyticsShellProps = {
-  active: "dashboard" | "analytics" | "assets" | "policy" | "settings";
+  active: "dashboard" | "analytics" | "assets" | "bearings" | "policy" | "settings" | "bearing";
   children: ReactNode;
   title?: string;
   searchPlaceholder?: string;
@@ -18,6 +18,7 @@ const navItems = [
   { href: "/", label: "Dashboard", key: "dashboard", icon: "dashboard" },
   { href: "/analytics", label: "Analytics", key: "analytics", icon: "analytics" },
   { href: "/assets", label: "Assets", key: "assets", icon: "inventory_2" },
+  { href: "/bearings", label: "Bearings", key: "bearings", icon: "settings_input_component" },
   { href: "/policy", label: "Policy Bands", key: "policy", icon: "shield" },
   { href: "/settings", label: "Settings", key: "settings", icon: "settings" },
 ] as const;
@@ -82,7 +83,7 @@ export function AnalyticsShell({
 
             <nav className="space-y-2">
               {navItems.map((item) => {
-                const isActive = item.key === active;
+                const isActive = item.key === active || (active === "bearing" && item.key === "bearings");
                 return (
                   <Link
                     key={item.key}
