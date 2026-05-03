@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Optional
 
@@ -90,4 +89,4 @@ async def invalidate_bearing(bearing_id: str) -> None:
     keys.append(_bearing_key(bearing_id))
     if keys:
         await client.delete(*keys)
-        logger.info(f"Invalidated %d cache for bearing %s", len(keys), bearing_id)
+        logger.info(f"Invalidated {len(keys)} cache for bearing {bearing_id}")

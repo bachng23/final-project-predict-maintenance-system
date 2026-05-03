@@ -108,7 +108,7 @@ async def upload_features(
     def _upload() -> None:
         client = get_client()
         client.put_object(
-            settings.MINIO_BUCKET_MLFLOW,
+            settings.MINIO_BUCKET_RAW_SIGNALS,
             key,
             io.BytesIO(buf_bytes),
             length=len(buf_bytes),
@@ -128,7 +128,7 @@ async def download_features(bearing_id: str, file_idx: int) -> Optional[np.ndarr
     def _download() -> Optional[bytes]:
         client = get_client()
         try:
-            response = client.get_object(settings.MINIO_BUCKET_MLFLOW, key)
+            response = client.get_object(settings.MINIO_BUCKET_RAW_SIGNALS, key)
             return response.read()
         except S3Error as e:
             if e.code == "NoSuchKey":

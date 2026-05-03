@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncGenerator
 from typing import Callable, Awaitable
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -47,9 +46,10 @@ async def _publish(topic: str, payload: dict, key: str | None = None) -> None:
     key_bytes = key.encode("utf-8") if key else None
     try:
         await producer.send_and_wait(topic, value=payload, key=key_bytes)
-        logger.info(f"Published to {topic}: {payload}")
-    except KafkaError as e:
-        logger.error(f"Failed to publish to {topic}: {e}")
+        logger.debug("Published to topic=%s key=%s", topic, key)
+    except KafkaError:
+        logger.exception("Failed to publish to topic=%s key=%s", topic, key)
+        raise
 
 
 # Publish helpers
@@ -81,7 +81,7 @@ async def make_consumer(
     group_id: str,
     auto_offset_reset: str = "latest",
 ) -> AIOKafkaConsumer:
-    "Create a comsumer for a topic. Caller is responsible for starting and stopping the consumer."
+    "Create a consumer for a topic. Caller is responsible for starting and stopping the consumer."
 
     consumer = AIOKafkaConsumer(
         topic,
@@ -93,7 +93,7 @@ async def make_consumer(
     )
     return consumer
 
-async def comsume_loop(
+async def consume_loop(
     topic: str,
     group_id: str,
     handler: Callable[[bytes], Awaitable[None]],
