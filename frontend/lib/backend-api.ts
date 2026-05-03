@@ -50,6 +50,14 @@ export type HealthCheck = {
   checkedAt: string;
 };
 
+type RawHealthResponse = {
+  status?: string;
+  message?: string;
+  ok?: boolean;
+  service?: string;
+  checkedAt?: string;
+};
+
 export type BearingDetailData = {
   bearing: BearingSummary;
   telemetry: TelemetryPoint[];
@@ -359,5 +367,11 @@ export async function fetchBearingDetail(id: string, signal?: AbortSignal): Prom
 }
 
 export async function fetchHealth(signal?: AbortSignal): Promise<HealthCheck> {
-  return getJson<HealthCheck>("/api/health", signal);
+  const raw = await getJson<RawHealthResponse>("/api/health", signal);
+
+  return {
+    ok: raw.ok ?? String(raw.status ?? "").toUpperCase() === "OK",
+    service: raw.service ?? raw.message ?? "backend-health",
+    checkedAt: raw.checkedAt ?? new Date().toISOString(),
+  };
 }
