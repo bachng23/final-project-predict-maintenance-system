@@ -95,7 +95,6 @@ model Snapshot {
 model Decision {
   id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   snapshotId            String               @unique @map("snapshot_id") @db.Uuid
-  decisionType          DecisionType         @map("decision_type")
   recommendedAction     ActionType           @map("recommended_action")
   recommendedConfidence Float?               @map("recommended_confidence")
   decisionStatus        DecisionStatus       @default(PENDING) @map("decision_status")
@@ -273,13 +272,6 @@ enum UserRole {
   ADMIN
 }
 
-enum DecisionType {
-  MAINTENANCE
-  INSPECTION
-  REPLACEMENT
-  IGNORE
-}
-
 enum EntityType {
   DECISION
   CONFIG
@@ -296,8 +288,5 @@ enum ConfigGroup {
 enum ActionSource {
   WEB_UI
   API
-  SYSTEM
-}
- API
   SYSTEM
 }
