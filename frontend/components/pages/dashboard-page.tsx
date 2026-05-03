@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Area,
   AreaChart,
@@ -13,13 +14,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, CheckCircle2, Clock3, Gauge, Thermometer, Waves } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, Thermometer, Waves } from "lucide-react";
 
 import { AnalyticsShell } from "@/components/analytics-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
+import { type BearingStatus, type DashboardData, type HealthCheck, fetchDashboard, fetchHealth } from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
 
 function compactNumber(value: number, suffix = "") {
@@ -46,15 +47,18 @@ function statusLabel(status: BearingStatus) {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [health, setHealth] = useState<HealthCheck | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const controller = new AbortController();
     fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+    fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
 
     const timer = window.setInterval(() => {
       fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+      fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
     }, 30000);
 
     return () => {
@@ -83,7 +87,7 @@ export function DashboardPage() {
   return (
     <AnalyticsShell active="dashboard" searchPlaceholder="Search systems..." title="Predictive Insights">
       <div className="mx-auto w-full max-w-6xl space-y-8 p-8">
-        <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
+        <div className="flex justify-between items-center rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-400">Real-time Overview</p>
             <h2 className="font-headline text-[1.75rem] font-bold leading-tight text-white">Machine Health Overview</h2>
@@ -99,21 +103,19 @@ export function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl md:col-span-4">
+          <div className="col-span-12 md:col-span-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
             <div className="mb-8 flex items-start justify-between">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
                 <span className="material-symbols-outlined">warning</span>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-tighter text-slate-500">Prob. Calculation</span>
             </div>
-            <p className="font-headline text-[3.5rem] font-bold leading-none text-white">
-              {compactNumber(data?.avgFailureProbability ?? 0, "%")}
-            </p>
+            <p className="font-headline text-[3.5rem] font-bold leading-none text-white">{compactNumber(data?.avgFailureProbability ?? 0, "%")}</p>
             <p className="mt-2 text-sm font-semibold text-slate-200">Failure Probability</p>
             <p className="mt-1 text-xs text-slate-500">{data?.activeAlerts ?? 0} active alerts in the current fleet</p>
           </div>
 
-          <div className="col-span-12 rounded-2xl border-x border-t border-b-4 border-slate-800 border-b-blue-500 bg-slate-900/80 p-6 shadow-xl md:col-span-4">
+          <div className="col-span-12 md:col-span-4 rounded-2xl border-x border-t border-slate-800 border-b-4 border-b-blue-500 bg-slate-900/80 p-6 shadow-xl">
             <div className="mb-8 flex items-start justify-between">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
                 <span className="material-symbols-outlined">timer</span>
@@ -128,7 +130,7 @@ export function DashboardPage() {
             <p className="mt-1 text-xs text-slate-500">Fleet-wide remaining life average</p>
           </div>
 
-          <div className="col-span-12 overflow-hidden rounded-2xl border border-slate-800 md:col-span-4">
+          <div className="col-span-12 md:col-span-4 overflow-hidden rounded-2xl border border-slate-800">
             <div className="flex h-full min-h-[260px] flex-col justify-end bg-[linear-gradient(180deg,rgba(15,23,42,0.2),rgba(15,23,42,0.92))] p-6">
               <p className="text-lg font-bold text-white">{mostCritical?.assetName ?? "Priority unit loading..."}</p>
               <p className="mt-1 text-xs text-white/70">{mostCritical?.location ?? "Waiting for live location data"}</p>
@@ -136,7 +138,7 @@ export function DashboardPage() {
           </div>
 
           <div className="col-span-12 rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl">
-            <div className="mb-10 flex items-center justify-between">
+            <div className="mb-10 flex justify-between items-center">
               <div>
                 <h3 className="font-manrope text-xl font-bold text-white">Health Engine</h3>
                 <p className="text-xs text-slate-400">Aggregated telemetry from the monitored bearings</p>
@@ -164,7 +166,7 @@ export function DashboardPage() {
                     />
                     <Legend />
                     <Line dataKey="failureProbability" dot={false} name="Failure %" stroke="#fb7185" strokeWidth={2.5} />
-                    <Line dataKey="temperature" dot={false} name="Temp C" stroke="#f59e0b" strokeWidth={2.5} />
+                    <Line dataKey="temperature" dot={false} name="Temp °C" stroke="#f59e0b" strokeWidth={2.5} />
                     <Line dataKey="vibration" dot={false} name="Vibration" stroke="#38bdf8" strokeWidth={2.5} />
                     <Line dataKey="healthScore" dot={false} name="Health" stroke="#34d399" strokeWidth={2.5} />
                   </LineChart>
@@ -181,7 +183,7 @@ export function DashboardPage() {
             <QuickAlert color="green" icon="compress" label="Pressure Fluctuation" />
           </div>
 
-          <div className="col-span-12 rounded-2xl border border-blue-500/20 bg-[linear-gradient(135deg,#1E3A8A,#0f172a)] p-8 shadow-2xl md:col-span-8">
+          <div className="col-span-12 md:col-span-8 rounded-2xl border border-blue-500/20 bg-[linear-gradient(135deg,#1E3A8A,#0f172a)] p-8 shadow-2xl">
             <div className="flex flex-col items-center gap-6 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/40 bg-red-500/20 text-white shadow-[0_0_20px_rgba(239,68,68,0.2)]">
                 <span className="material-symbols-outlined text-4xl">error</span>
@@ -208,7 +210,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="col-span-12 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 md:col-span-4">
+          <div className="col-span-12 md:col-span-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-blue-300">
                 <span className="material-symbols-outlined">lightbulb</span>
@@ -273,7 +275,7 @@ export function DashboardPage() {
             <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
                 <CardTitle>Bearing Watchlist</CardTitle>
-                <CardDescription>Prioritized bearings from the current monitoring feed</CardDescription>
+                <CardDescription>Select a bearing to open the detailed view</CardDescription>
               </div>
               <Badge>{data?.totals.bearings ?? 0} Bearings</Badge>
             </CardHeader>
@@ -286,8 +288,9 @@ export function DashboardPage() {
                   <span>RUL</span>
                 </div>
                 {(data?.bearings ?? []).map((bearing) => (
-                  <div
+                  <Link
                     className="grid grid-cols-[1fr_120px_100px_88px] items-center border-b border-slate-800 px-4 py-4 transition-colors last:border-0 hover:bg-slate-800/55"
+                    href={`/bearings/${encodeURIComponent(bearing.id)}`}
                     key={bearing.id}
                   >
                     <div className="min-w-0">
@@ -305,118 +308,35 @@ export function DashboardPage() {
                         <p className="truncate text-sm font-bold text-white">{bearing.name}</p>
                       </div>
                       <p className="mt-1 truncate text-xs text-slate-500">
-                        {bearing.id} - {bearing.assetName}
+                        {bearing.id} · {bearing.assetName}
                       </p>
                     </div>
                     <Badge variant={statusVariant(bearing.status)}>{statusLabel(bearing.status)}</Badge>
                     <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.failureProbability)}%</span>
                     <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.rul)}h</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Condition Score</CardTitle>
-              <CardDescription>Composite live score based on vibration, temperature, and pressure signals</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6 md:grid-cols-[260px_1fr]">
-              <div className="flex items-center justify-center">
-                <D3Gauge value={data?.avgHealthScore ?? 0} />
-              </div>
-              <div className="grid gap-4">
-                <MetricRow icon={<Gauge className="h-4 w-4" />} label="Average Health" value={`${Math.round(data?.avgHealthScore ?? 0)} / 100`} />
-                <MetricRow icon={<Thermometer className="h-4 w-4" />} label="Temperature Window" value={`${Math.round(chartData.at(-1)?.temperature ?? 0)} C`} />
-                <MetricRow icon={<Waves className="h-4 w-4" />} label="Vibration RMS" value={`${(chartData.at(-1)?.vibration ?? 0).toFixed(2)} mm/s`} />
-                <MetricRow icon={<Clock3 className="h-4 w-4" />} label="Average RUL" value={`${Math.round(data?.avgRul ?? 0)} hours`} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Alert Summary</CardTitle>
-              <CardDescription>Current high-signal observations from the latest telemetry window</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <AlertRow
-                accent="critical"
-                description="Primary spindle temperature crossed the warning threshold twice in the last hour."
-                icon={<AlertTriangle className="h-4 w-4" />}
-                label="Thermal escalation"
-              />
-              <AlertRow
-                accent="warning"
-                description="Vibration profile is trending upward on two monitored assets."
-                icon={<Waves className="h-4 w-4" />}
-                label="Vibration drift"
-              />
-              <AlertRow
-                accent="success"
-                description="Pressure band remains stable across the remaining monitored bearings."
-                icon={<CheckCircle2 className="h-4 w-4" />}
-                label="Pressure stable"
-              />
-            </CardContent>
-          </Card>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">Nginx Health Check</p>
+              <p className="mt-2 text-sm font-semibold text-white">{health?.ok ? "GET /api/health OK" : "Waiting for /api/health response"}</p>
+              <p className="mt-1 text-xs text-slate-300">
+                {health
+                  ? `${health.service} · ${formatTime(health.checkedAt)}`
+                  : "This panel confirms the frontend can resolve /api/health through the current proxy path."}
+              </p>
+            </div>
+            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Proxy OK" : "Checking"}</Badge>
+          </div>
         </div>
       </div>
     </AnalyticsShell>
-  );
-}
-
-function MetricRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
-      <div className="flex items-center gap-3 text-slate-300">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/10 text-blue-300">{icon}</div>
-        <span className="text-sm font-medium">{label}</span>
-      </div>
-      <span className="text-sm font-semibold text-white">{value}</span>
-    </div>
-  );
-}
-
-function AlertRow({
-  accent,
-  description,
-  icon,
-  label,
-}: {
-  accent: "critical" | "warning" | "success";
-  description: string;
-  icon: ReactNode;
-  label: string;
-}) {
-  const tone =
-    accent === "critical"
-      ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
-      : accent === "warning"
-        ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-
-  return (
-    <div className={cn("rounded-xl border px-4 py-4", tone)}>
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black/20">{icon}</div>
-        <div>
-          <p className="text-sm font-semibold">{label}</p>
-          <p className="mt-1 text-xs leading-relaxed opacity-90">{description}</p>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -428,13 +348,7 @@ function QuickAlert({ color, icon, label }: { color: "red" | "blue" | "green"; i
   }[color];
 
   return (
-    <button
-      className={cn(
-        "group flex items-center gap-4 rounded-xl border p-4 text-white shadow-lg transition-all duration-300 hover:-translate-y-1",
-        tone,
-      )}
-      type="button"
-    >
+    <button className={cn("group flex items-center gap-4 rounded-xl border p-4 text-white shadow-lg transition-all duration-300 hover:-translate-y-1", tone)}>
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
         <span className="material-symbols-outlined">{icon}</span>
       </div>
