@@ -13,13 +13,13 @@ async function main() {
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {
-      passwordHash: hashedPassword,
+      password_hash: hashedPassword,
     },
     create: {
       username: 'admin',
-      fullName: 'System Administrator',
+      full_name: 'System Administrator',
       email: 'admin@example.com',
-      passwordHash: hashedPassword,
+      password_hash: hashedPassword,
       role: 'ADMIN',
       active: true,
     },
@@ -28,44 +28,44 @@ async function main() {
 
   // 2. Create a sample Bearing
   const bearing = await prisma.bearing.upsert({
-    where: { bearingId: 'XJT-B1' },
+    where: { bearing_id: 'XJT-B1' },
     update: {},
     create: {
-      bearingId: 'XJT-B1',
-      displayName: 'Bearing XJTU-SY B1',
-      datasetSource: 'XJTU-SY',
-      conditionLabel: '35HZ_12KN',
+      bearing_id: 'XJT-B1',
+      display_name: 'Bearing XJTU-SY B1',
+      dataset_source: 'XJTU-SY',
+      condition_label: '35HZ_12KN',
       rpm: 2100,
-      loadKn: 12,
+      load_kn: 12,
       status: 'NORMAL',
       active: true,
     },
   });
-  console.log('Sample bearing created:', bearing.bearingId);
+  console.log('Sample bearing created:', bearing.bearing_id);
 
   // 3. Create Sample Prediction
   const prediction = await prisma.prediction.upsert({
     where: {
-      bearingId_fileIdx_modelVersion: {
-        bearingId: bearing.id,
-        fileIdx: 1,
-        modelVersion: 'v1.0.0',
+      bearing_id_file_idx_model_version: {
+        bearing_id: bearing.id,
+        file_idx: 1,
+        model_version: 'v1.0.0',
       },
     },
     update: {},
     create: {
-      bearingId: bearing.id,
-      fileIdx: 1,
-      sampleTs: new Date(),
-      rulMinutes: 150.5,
-      rulLowerMinutes: 140.0,
-      rulUpperMinutes: 161.0,
-      rulUncertainty: 0.02,
-      pFail: 0.05,
-      healthScore: 92.0,
-      degradationRate: 0.001,
-      oodFlag: false,
-      modelVersion: 'v1.0.0',
+      bearing_id: bearing.id,
+      file_idx: 1,
+      sample_ts: new Date(),
+      rul_minutes: 150.5,
+      rul_lower_minutes: 140.0,
+      rul_upper_minutes: 161.0,
+      rul_uncertainty: 0.02,
+      p_fail: 0.05,
+      health_score: 92.0,
+      degradation_rate: 0.001,
+      ood_flag: false,
+      model_version: 'v1.0.0',
     },
   });
   console.log('Sample prediction created/updated');
@@ -78,53 +78,53 @@ async function main() {
     update: {},
     create: {
       id: '00000000-0000-0000-0000-000000000001',
-      bearingId: bearing.id,
-      predictionId: prediction.id,
-      snapshotTs: new Date(),
+      bearing_id: bearing.id,
+      prediction_id: prediction.id,
+      snapshot_ts: new Date(),
       status: 'PENDING_REVIEW',
-      triggerSource: 'ANOMALY_TRIGGER',
+      trigger_source: 'ANOMALY_TRIGGER',
     },
   });
   console.log('Sample snapshot created/updated');
 
   // 5. Create Sample Decision
   await prisma.decision.upsert({
-    where: { snapshotId: snapshot.id },
+    where: { snapshot_id: snapshot.id },
     update: {},
     create: {
-      snapshotId: snapshot.id,
-      decisionType: 'INSPECTION',
-      recommendedAction: 'INSPECT',
-      recommendedConfidence: 0.85,
-      decisionStatus: 'PENDING',
+      snapshot_id: snapshot.id,
+      decision_type: 'INSPECTION',
+      recommended_action: 'INSPECT',
+      recommended_confidence: 0.85,
+      decision_status: 'PENDING',
       priority: 'MEDIUM',
-      reasonSummary: 'Abnormal vibration patterns detected in latest cycle.',
+      reason_summary: 'Abnormal vibration patterns detected in latest cycle.',
     },
   });
   console.log('Sample decision created/updated');
 
   // 6. Create Runtime Configs
   await prisma.runtimeConfig.upsert({
-    where: { configKey: 'thresholds_v1' },
+    where: { config_key: 'thresholds_v1' },
     update: {},
     create: {
-      configGroup: 'THRESHOLDS',
-      configKey: 'thresholds_v1',
-      configValueJson: { tau_star: 0.15, hybrid_score_threshold: 0.7 },
-      versionNo: 1,
-      isActive: true,
+      config_group: 'THRESHOLDS',
+      config_key: 'thresholds_v1',
+      config_value_json: { tau_star: 0.15, hybrid_score_threshold: 0.7 },
+      version_no: 1,
+      is_active: true,
     },
   });
 
   await prisma.runtimeConfig.upsert({
-    where: { configKey: 'agents_v1' },
+    where: { config_key: 'agents_v1' },
     update: {},
     create: {
-      configGroup: 'AGENTS',
-      configKey: 'agents_v1',
-      configValueJson: { max_negotiation_rounds: 5, llm_model_name: 'gpt-4o' },
-      versionNo: 1,
-      isActive: true,
+      config_group: 'AGENTS',
+      config_key: 'agents_v1',
+      config_value_json: { max_negotiation_rounds: 5, llm_model_name: 'gpt-4o' },
+      version_no: 1,
+      is_active: true,
     },
   });
 
