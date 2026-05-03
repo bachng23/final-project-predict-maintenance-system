@@ -137,7 +137,7 @@ class DecisionActionRequest(BaseModel):
 class DecisionActionRecord(BaseModel):
     "Record of the decision action taken by the operator"
 
-    decison_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique identifier for the decision record")
+    decision_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique identifier for the decision record")
     action: OperatorAction = Field(..., description="Action taken by the operator, e.g. APPROVE, OVERRIDE, REJECT, ACKNOWLEDGE")
     final_action: RecommendationAction = Field(..., description="Final recommended action after negotiation")
     override_reason: Optional[str] = Field(None, description="Reason for overriding the recommended action, if applicable")
