@@ -10,7 +10,7 @@ BearingStatus = Literal['NORMAL', 'INSPECT', 'NEGOTIATE', 'MAINTAIN', 'STOP', 'O
 FaultType = Literal['INNER_RACE', 'OUTER_RACE', 'BALL', 'CAGE', 'UNKNOWN']
 RecommendationAction = Literal['CONTINUE', 'INSPECT', 'MAINTAIN', 'STOP']
 OperatorAction = Literal['APPROVE', 'OVERRIDE', 'REJECT', 'ACKNOWLEDGE']
-DecisionStatus = Literal['PENDING', 'APPROVED', 'REJECTED', 'OVERRIDDEN', 'ACKNOWLEDGED']
+DecisionStatus = Literal['PENDING', 'RESOLVED', 'ACKNOWLEDGED']
 PriorityLevel = Literal['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 TriggerSource = Literal['ANOMALY_TRIGGER', 'SAFETY_VETO', 'MANUAL_REQUEST', 'SCHEDULED_CHECK']
 AgentMessageType = Literal['PROPOSE', 'CRITIQUE', 'VOTE', 'SUMMARY']
@@ -46,7 +46,7 @@ class PredictionRecord(BaseModel):
     health_score: float = Field(..., ge=0, le=100, description="Health score of the bearing, typically between 0 and 100")
     
     # Extra model signals
-    degradation_rate: float = Field(..., description="Rate of degradation of the bearing")
+    degradation_rate: Optional[float] = Field(None, description="Rate of degradation of the bearing")
     ood_flag: Optional[bool] = Field(None, description="Flag indicating if the sample is out-of-distribution")
 
     # Fault detection
