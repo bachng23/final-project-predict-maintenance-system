@@ -12,7 +12,7 @@ const getAllBearingsWithLatestStatus = async () => {
     include: {
       predictions: {
         orderBy: {
-          sampleTs: 'desc',
+          sample_ts: 'desc',
         },
         take: 1,
       },
@@ -21,13 +21,13 @@ const getAllBearingsWithLatestStatus = async () => {
           decision: true,
         },
         orderBy: {
-          snapshotTs: 'desc',
+          snapshot_ts: 'desc',
         },
         take: 1,
       },
     },
     orderBy: {
-      bearingId: 'asc',
+      bearing_id: 'asc',
     },
   });
 
@@ -39,26 +39,26 @@ const getAllBearingsWithLatestStatus = async () => {
 
     return {
       id: bearing.id,
-      bearing_id: bearing.bearingId,
-      display_name: bearing.displayName,
-      dataset_source: bearing.datasetSource,
-      condition_label: bearing.conditionLabel,
+      bearing_id: bearing.bearing_id,
+      display_name: bearing.display_name,
+      dataset_source: bearing.dataset_source,
+      condition_label: bearing.condition_label,
       status: bearing.status,
       // Mapping fields from latest prediction
-      latest_prediction_at: latestPrediction.sampleTs || null,
-      health_score: latestPrediction.healthScore ?? null,
-      p_fail: latestPrediction.pFail ?? null,
-      rul_hours: latestPrediction.rulMinutes ? latestPrediction.rulMinutes / 60 : null,
-      fault_type: latestPrediction.faultType || null,
-      fault_confidence: latestPrediction.faultConfidence ?? null,
+      latest_prediction_at: latestPrediction.sample_ts || null,
+      health_score: latestPrediction.health_score ?? null,
+      p_fail: latestPrediction.p_fail ?? null,
+      rul_hours: latestPrediction.rul_minutes ? latestPrediction.rul_minutes / 60 : null,
+      fault_type: latestPrediction.fault_type || null,
+      fault_confidence: latestPrediction.fault_confidence ?? null,
       // Mapping fields from latest decision
       priority: latestDecision.priority || null,
-      last_decision_status: latestDecision.decisionStatus || null,
+      last_decision_status: latestDecision.decision_status || null,
       // Keep technical IDs if needed
       latest_prediction_id: latestPrediction.id || null,
       latest_snapshot_id: latestSnapshot.id || null,
       latest_decision_id: latestDecision.id || null,
-      updated_at: bearing.updatedAt,
+      updated_at: bearing.updated_at,
     };
   });
 };
@@ -73,19 +73,19 @@ const getPredictionsByBearingId = async (bearingId, filters = {}) => {
   const { limit = 100, startDate, endDate } = filters;
   
   const where = {
-    bearingId: bearingId,
+    bearing_id: bearingId,
   };
 
   if (startDate || endDate) {
-    where.sampleTs = {};
-    if (startDate) where.sampleTs.gte = new Date(startDate);
-    if (endDate) where.sampleTs.lte = new Date(endDate);
+    where.sample_ts = {};
+    if (startDate) where.sample_ts.gte = new Date(startDate);
+    if (endDate) where.sample_ts.lte = new Date(endDate);
   }
 
   const predictions = await prisma.prediction.findMany({
     where,
     orderBy: {
-      sampleTs: 'desc',
+      sample_ts: 'desc',
     },
     take: limit,
   });
@@ -93,23 +93,23 @@ const getPredictionsByBearingId = async (bearingId, filters = {}) => {
   // Transform to follow the 'Prediction Detail' contract
   return predictions.map((p) => ({
     prediction_id: p.id,
-    bearing_id: p.bearingId,
-    file_idx: p.fileIdx,
-    sample_ts: p.sampleTs,
-    rul_hours: p.rulMinutes ? p.rulMinutes / 60 : null,
-    rul_lower_hours: p.rulLowerMinutes ? p.rulLowerMinutes / 60 : null,
-    rul_upper_hours: p.rulUpperMinutes ? p.rulUpperMinutes / 60 : null,
-    p_fail: p.pFail,
-    health_score: p.healthScore,
-    uncertainty_score: p.rulUncertainty,
-    fault_type: p.faultType,
-    fault_confidence: p.faultConfidence,
-    stat_score: p.statScore,
-    rul_drop_score: p.rulDropScore,
-    hybrid_score: p.hybridScore,
-    threshold_tau: p.thresholdTau,
-    model_version: p.modelVersion,
-    created_at: p.createdAt,
+    bearing_id: p.bearing_id,
+    file_idx: p.file_idx,
+    sample_ts: p.sample_ts,
+    rul_hours: p.rul_minutes ? p.rul_minutes / 60 : null,
+    rul_lower_hours: p.rul_lower_minutes ? p.rul_lower_minutes / 60 : null,
+    rul_upper_hours: p.rul_upper_minutes ? p.rul_upper_minutes / 60 : null,
+    p_fail: p.p_fail,
+    health_score: p.health_score,
+    uncertainty_score: p.rul_uncertainty,
+    fault_type: p.fault_type,
+    fault_confidence: p.fault_confidence,
+    stat_score: p.stat_score,
+    rul_drop_score: p.rul_drop_score,
+    hybrid_score: p.hybrid_score,
+    threshold_tau: p.threshold_tau,
+    model_version: p.model_version,
+    created_at: p.created_at,
   }));
 };
 
