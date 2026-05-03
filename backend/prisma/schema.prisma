@@ -298,6 +298,3 @@ enum ActionSource {
   API
   SYSTEM
 }
- API
-  SYSTEM
-}
