@@ -22,14 +22,6 @@ body {
   color: #e2e8f0;
 }
 
-.material-symbols-outlined {
-  font-variation-settings:
-    "FILL" 0,
-    "wght" 400,
-    "GRAD" 0,
-    "opsz" 24;
-}
-
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }

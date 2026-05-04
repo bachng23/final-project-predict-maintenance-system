@@ -17,7 +17,7 @@ type AppShellProps = {
 
 const navItems = [
   { href: "/", label: "Dashboard", key: "dashboard", icon: LayoutDashboard },
-  { href: "/bearings/BRG-001", label: "Bearing Detail", key: "bearing", icon: Gauge },
+  { href: "/bearings/BRG-101", label: "Bearing Detail", key: "bearing", icon: Gauge },
   { href: "#", label: "Analytics", key: "analytics", icon: Activity },
   { href: "#", label: "Maintenance", key: "maintenance", icon: Wrench },
   { href: "#", label: "Settings", key: "settings", icon: Settings },
