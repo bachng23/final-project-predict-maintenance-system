@@ -2,14 +2,15 @@ require('dotenv').config();
 const http = require('http');
 
 async function checkAPI() {
-  const PORT = process.env.PORT || 5000;
-  console.log(`🚀 Đang kiểm tra API GET /api/bearings trên PORT ${PORT}...`);
+  const baseUrl = process.env.API_BASE_URL || 'http://localhost';
+  const requestUrl = new URL('/api/bearings', baseUrl);
+  console.log(`Checking GET ${requestUrl.toString()} ...`);
 
   const options = {
-    hostname: 'localhost',
-    port: PORT,
-    path: '/api/bearings',
-    method: 'GET'
+    hostname: requestUrl.hostname,
+    port: requestUrl.port || 80,
+    path: `${requestUrl.pathname}${requestUrl.search}`,
+    method: 'GET',
   };
 
   const req = http.request(options, (res) => {
@@ -22,40 +23,38 @@ async function checkAPI() {
     res.on('end', () => {
       if (res.statusCode === 200) {
         const json = JSON.parse(data);
-        console.log('✅ Kết nối thành công (200 OK)');
-        console.log(`📊 Số lượng máy: ${json.count}`);
-        
+        console.log('API reachable (200 OK)');
+        console.log(`Bearing count: ${json.count}`);
+
         if (json.data.length > 0) {
-          const b = json.data[0];
-          console.log('🔍 Kiểm tra cấu trúc dữ liệu máy đầu tiên:');
-          console.log(`   - ID: ${b.bearing_id}`);
-          console.log(`   - Status: ${b.status}`);
-          console.log(`   - RUL (Hours): ${b.rul_hours}`);
-          
-          // Kiểm tra xem có field bắt buộc không
+          const bearing = json.data[0];
+          console.log('First bearing payload:');
+          console.log(`   - ID: ${bearing.bearing_id}`);
+          console.log(`   - Status: ${bearing.status}`);
+          console.log(`   - RUL (Hours): ${bearing.rul_hours}`);
+
           const required = ['bearing_id', 'status', 'health_score', 'rul_hours'];
-          const missing = required.filter(f => !(f in b));
-          
+          const missing = required.filter((field) => !(field in bearing));
+
           if (missing.length === 0) {
-            console.log('✨ Tất cả các trường bắt buộc đều hiện diện.');
+            console.log('Required fields are present.');
           } else {
-            console.error('❌ Thiếu trường dữ liệu:', missing);
+            console.error('Missing fields:', missing);
           }
         }
       } else {
-        console.error(`❌ Lỗi API: Status Code ${res.statusCode}`);
+        console.error(`API error: Status Code ${res.statusCode}`);
         console.error('Data:', data);
       }
     });
   });
 
   req.on('error', (error) => {
-    console.error('❌ Không thể kết nối tới Server. Hãy đảm bảo bạn đã chạy "npm run dev".');
-    console.error('Chi tiết lỗi:', error.message);
+    console.error('Cannot connect to the API through Nginx.');
+    console.error('Error details:', error.message);
   });
 
   req.end();
 }
 
-// Chạy kiểm tra
 checkAPI();
