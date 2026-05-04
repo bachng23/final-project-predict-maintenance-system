@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Area,
@@ -286,8 +287,9 @@ export function DashboardPage() {
                   <span>RUL</span>
                 </div>
                 {(data?.bearings ?? []).map((bearing) => (
-                  <div
+                  <Link
                     className="grid grid-cols-[1fr_120px_100px_88px] items-center border-b border-slate-800 px-4 py-4 transition-colors last:border-0 hover:bg-slate-800/55"
+                    href={`/bearings/${encodeURIComponent(bearing.id)}`}
                     key={bearing.id}
                   >
                     <div className="min-w-0">
@@ -311,7 +313,7 @@ export function DashboardPage() {
                     <Badge variant={statusVariant(bearing.status)}>{statusLabel(bearing.status)}</Badge>
                     <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.failureProbability)}%</span>
                     <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.rul)}h</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </CardContent>
