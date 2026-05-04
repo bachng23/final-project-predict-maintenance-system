@@ -5,15 +5,15 @@ networks:
 services:
   nginx:
     image: nginx:1.27-alpine
-    container_name: nginx_gateway
+    container_name: nginx_reverse_proxy
     restart: always
-    depends_on:
-      - web_backend
-      - ai_backend
     ports:
       - "80:80"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web_backend
+      - ai_backend
     networks:
       - predictive_maintenance_net
 
@@ -73,6 +73,84 @@ services:
       - redpanda
       - minio
       - mlflow
+    networks:
+      - predictive_maintenance_net
+
+  ai_predictor:
+    build:
+      context: ./ai_services
+      dockerfile: predictor/Dockerfile
+    container_name: ai_predictor
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+      - minio
+    networks:
+      - predictive_maintenance_net
+
+  ai_orchestrator:
+    build:
+      context: ./ai_services
+      dockerfile: orchestrator/Dockerfile
+    container_name: ai_orchestrator
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "8001"
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+    networks:
+      - predictive_maintenance_net
+
+  ai_anomaly:
+    build:
+      context: ./ai_services
+      dockerfile: anomaly/Dockerfile
+    container_name: ai_anomaly
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+    networks:
+      - predictive_maintenance_net
+
+  ai_ingestion:
+    build:
+      context: ./ai_services
+      dockerfile: ingestion/Dockerfile
+    container_name: ai_ingestion
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redpanda
+      - minio
+    networks:
+      - predictive_maintenance_net
+
+  ai_signal_processor:
+    build:
+      context: ./ai_services
+      dockerfile: signal_processor/Dockerfile
+    container_name: ai_signal_processor
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redpanda
+      - minio
     networks:
       - predictive_maintenance_net
 
@@ -220,17 +298,10 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD}@redis_cache:6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
-      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
-      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
-      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
-      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
-      LANGFUSE_S3_MEDIA_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
-      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
       LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
@@ -267,7 +338,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD}@redis_cache:6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}

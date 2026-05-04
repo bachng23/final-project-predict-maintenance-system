@@ -5,8 +5,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY . .
+COPY prisma ./prisma
+COPY prisma.config.js ./
+COPY src ./src
+
+ENV NODE_ENV=production
+ENV PORT=5000
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]

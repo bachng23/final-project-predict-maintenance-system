@@ -22,7 +22,6 @@ export function D3Gauge({ value, max = 100, label, unit = "%", tone = "emerald" 
   const svgRef = useRef<SVGSVGElement>(null);
   const normalizedValue = Math.max(0, Math.min(value, max));
   const colors = toneColors[tone];
-  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
 
   const displayValue = useMemo(() => {
     if (Number.isInteger(normalizedValue)) return String(normalizedValue);
@@ -91,20 +90,20 @@ export function D3Gauge({ value, max = 100, label, unit = "%", tone = "emerald" 
       .attr("y1", 0)
       .attr("x2", Math.cos(needleAngle) * (radius - 32))
       .attr("y2", Math.sin(needleAngle) * (radius - 32))
-      .attr("stroke", isDark ? "#e2e8f0" : "#0f172a")
+      .attr("stroke", "#e2e8f0")
       .attr("stroke-width", 3)
       .attr("stroke-linecap", "round");
 
-    group.append("circle").attr("r", 7).attr("fill", isDark ? "#e2e8f0" : "#0f172a");
-  }, [colors, displayValue, isDark, label, max, normalizedValue, unit]);
+    group.append("circle").attr("r", 7).attr("fill", "#e2e8f0");
+  }, [colors, displayValue, label, max, normalizedValue, unit]);
 
   return (
     <div className="flex h-full min-h-[196px] flex-col items-center justify-center">
       <svg ref={svgRef} className="h-40 w-full max-w-[260px]" />
       <div className="-mt-8 text-center">
-        <p className="font-headline text-3xl font-bold text-slate-900 dark:text-white">
+        <p className="font-headline text-3xl font-bold text-white">
           {displayValue}
-          <span className="ml-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{unit}</span>
+          <span className="ml-1 text-sm font-semibold text-slate-400">{unit}</span>
         </p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.text }}>
           {label}

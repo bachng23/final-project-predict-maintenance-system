@@ -16,11 +16,11 @@ import {
 } from "recharts";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, Thermometer, Waves } from "lucide-react";
 
-import { AnalyticsShell } from "@/components/analytics-shell";
+import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, type HealthCheck, fetchDashboard, fetchHealth } from "@/lib/backend-api";
+import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
 
 function compactNumber(value: number, suffix = "") {
@@ -47,18 +47,15 @@ function statusLabel(status: BearingStatus) {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [health, setHealth] = useState<HealthCheck | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const controller = new AbortController();
     fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-    fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
 
     const timer = window.setInterval(() => {
       fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-      fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
     }, 30000);
 
     return () => {
@@ -85,151 +82,167 @@ export function DashboardPage() {
   );
 
   return (
-    <AnalyticsShell active="dashboard" searchPlaceholder="Search systems..." title="Predictive Insights">
-      <div className="mx-auto w-full max-w-6xl space-y-8 p-8">
-        <div className="flex justify-between items-center rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-400">Real-time Overview</p>
-            <h2 className="font-headline text-[1.75rem] font-bold leading-tight text-white">Machine Health Overview</h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
-              Live bearings, health trends, and intervention priority from the backend feed.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <div className="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-              System: Nominal
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 md:col-span-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-            <div className="mb-8 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
-                <span className="material-symbols-outlined">warning</span>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-tighter text-slate-500">Prob. Calculation</span>
-            </div>
-            <p className="font-headline text-[3.5rem] font-bold leading-none text-white">{compactNumber(data?.avgFailureProbability ?? 0, "%")}</p>
-            <p className="mt-2 text-sm font-semibold text-slate-200">Failure Probability</p>
-            <p className="mt-1 text-xs text-slate-500">{data?.activeAlerts ?? 0} active alerts in the current fleet</p>
-          </div>
-
-          <div className="col-span-12 md:col-span-4 rounded-2xl border-x border-t border-slate-800 border-b-4 border-b-blue-500 bg-slate-900/80 p-6 shadow-xl">
-            <div className="mb-8 flex items-start justify-between">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
-                <span className="material-symbols-outlined">timer</span>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-tighter text-slate-500">Operational Life</span>
-            </div>
-            <p className="font-headline text-[3.5rem] font-bold leading-none text-white">
-              <span>{Math.round(data?.avgRul ?? 0)}</span>
-              <span className="ml-1 text-xl font-normal">hrs</span>
-            </p>
-            <p className="mt-2 text-sm font-semibold text-slate-200">Remaining Useful Life</p>
-            <p className="mt-1 text-xs text-slate-500">Fleet-wide remaining life average</p>
-          </div>
-
-          <div className="col-span-12 md:col-span-4 overflow-hidden rounded-2xl border border-slate-800">
-            <div className="flex h-full min-h-[260px] flex-col justify-end bg-[linear-gradient(180deg,rgba(15,23,42,0.2),rgba(15,23,42,0.92))] p-6">
-              <p className="text-lg font-bold text-white">{mostCritical?.assetName ?? "Priority unit loading..."}</p>
-              <p className="mt-1 text-xs text-white/70">{mostCritical?.location ?? "Waiting for live location data"}</p>
-            </div>
-          </div>
-
-          <div className="col-span-12 rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl">
-            <div className="mb-10 flex justify-between items-center">
+    <AppShell active="dashboard" status={data?.source ?? "demo"} title="Dashboard Tổng Quan">
+      <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
+        <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+          <div className="rounded-lg border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="font-manrope text-xl font-bold text-white">Health Engine</h3>
-                <p className="text-xs text-slate-400">Aggregated telemetry from the monitored bearings</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">Real-time Overview</p>
+                <h1 className="mt-2 font-headline text-3xl font-bold text-white">Machine Health Overview</h1>
+                <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                  Tổng hợp bearing health, RUL, xác suất lỗi và cảnh báo từ Web Backend.
+                </p>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-                  Live Health Chart
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                  <p className="font-headline text-2xl font-bold text-emerald-200">{data?.totals.normal ?? 0}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Normal</p>
+                </div>
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+                  <p className="font-headline text-2xl font-bold text-amber-200">{data?.totals.warning ?? 0}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Warning</p>
+                </div>
+                <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3">
+                  <p className="font-headline text-2xl font-bold text-rose-200">{data?.totals.critical ?? 0}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-300">Critical</p>
                 </div>
               </div>
             </div>
-            <div className="h-[320px]">
-              {mounted ? (
-                <ResponsiveContainer height="100%" width="100%">
-                  <LineChart data={chartData} margin={{ bottom: 6, left: -12, right: 12, top: 10 }}>
-                    <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#0f172a",
-                        border: "1px solid #334155",
-                        borderRadius: 8,
-                        color: "#e2e8f0",
-                      }}
-                    />
-                    <Legend />
-                    <Line dataKey="failureProbability" dot={false} name="Failure %" stroke="#fb7185" strokeWidth={2.5} />
-                    <Line dataKey="temperature" dot={false} name="Temp °C" stroke="#f59e0b" strokeWidth={2.5} />
-                    <Line dataKey="vibration" dot={false} name="Vibration" stroke="#38bdf8" strokeWidth={2.5} />
-                    <Line dataKey="healthScore" dot={false} name="Health" stroke="#34d399" strokeWidth={2.5} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-slate-500">Preparing chart...</div>
-              )}
-            </div>
           </div>
 
-          <div className="col-span-12 grid grid-cols-1 gap-6 md:grid-cols-3">
-            <QuickAlert color="red" icon="thermostat" label="High Temperature" />
-            <QuickAlert color="blue" icon="vibration" label="Abnormal Vibration" />
-            <QuickAlert color="green" icon="compress" label="Pressure Fluctuation" />
-          </div>
+          <Card className="bg-slate-900">
+            <CardHeader className="pb-2">
+              <CardTitle>Fleet Health Gauge</CardTitle>
+              <CardDescription>D3.js gauge từ health score trung bình</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <D3Gauge label="Average Health" tone="emerald" value={data?.avgHealthScore ?? 0} />
+            </CardContent>
+          </Card>
+        </section>
 
-          <div className="col-span-12 md:col-span-8 rounded-2xl border border-blue-500/20 bg-[linear-gradient(135deg,#1E3A8A,#0f172a)] p-8 shadow-2xl">
-            <div className="flex flex-col items-center gap-6 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/40 bg-red-500/20 text-white shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-                <span className="material-symbols-outlined text-4xl">error</span>
-              </div>
-              <div className="rounded-full border border-red-500/30 bg-red-500/20 px-3 py-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-red-300">Critical Alert</p>
-              </div>
-              <div className="max-w-2xl">
-                <h4 className="mb-3 font-headline text-2xl font-bold tracking-tight text-white">Urgent Action Required</h4>
-                <p className="text-sm leading-relaxed text-blue-100/80">
-                  {mostCritical
-                    ? `${mostCritical.name} is leading the fleet risk profile. Review the asset now to prevent avoidable failure.`
-                    : "Telemetry is loading for the highest-risk asset."}
-                </p>
-              </div>
-              <div className="flex flex-row justify-center gap-4">
-                <button className="rounded-xl border border-white/20 bg-white/5 px-8 py-3 text-xs font-bold uppercase tracking-widest text-white transition-all hover:bg-white/10">
-                  Reject
-                </button>
-                <button className="rounded-xl bg-green-500 px-8 py-3 text-xs font-bold uppercase tracking-widest text-white shadow-[0_4px_12px_rgba(34,197,94,0.3)] transition-all hover:bg-green-600">
-                  Approve
-                </button>
-              </div>
-            </div>
-          </div>
+        <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            icon={<Gauge className="h-5 w-5" />}
+            label="Avg Failure Probability"
+            value={compactNumber(data?.avgFailureProbability ?? 0, "%")}
+            subtext={`${data?.activeAlerts ?? 0} active alerts`}
+            tone="rose"
+          />
+          <MetricCard
+            icon={<Clock3 className="h-5 w-5" />}
+            label="Average RUL"
+            value={compactNumber(data?.avgRul ?? 0, "h")}
+            subtext="Fleet-wide remaining life"
+            tone="blue"
+          />
+          <MetricCard
+            icon={<Thermometer className="h-5 w-5" />}
+            label="Hottest Bearing"
+            value={compactNumber(Math.max(...(data?.bearings.map((b) => b.temperature) ?? [0])), "°C")}
+            subtext={mostCritical?.assetName ?? "Waiting for data"}
+            tone="amber"
+          />
+          <MetricCard
+            icon={<Waves className="h-5 w-5" />}
+            label="Peak Vibration"
+            value={`${Math.max(...(data?.bearings.map((b) => b.vibration) ?? [0])).toFixed(1)} mm/s`}
+            subtext="RMS velocity"
+            tone="emerald"
+          />
+        </section>
 
-          <div className="col-span-12 md:col-span-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-blue-300">
-                <span className="material-symbols-outlined">lightbulb</span>
-              </div>
+        <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+          <Card>
+            <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase text-slate-500">Efficiency Tip</p>
-                <p className="text-sm font-semibold text-slate-300">
-                  Adjust coolant flow on the primary line to extend shaft life and lower bearing stress.
-                </p>
+                <CardTitle>Time-series Health Engine</CardTitle>
+                <CardDescription>Recharts line chart cho vibration, temperature và failure probability</CardDescription>
               </div>
-            </div>
-          </div>
-        </div>
+              <Badge variant="success">Live Chart</Badge>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[340px]">
+                {mounted ? (
+                  <ResponsiveContainer height="100%" width="100%">
+                    <LineChart data={chartData} margin={{ bottom: 6, left: -12, right: 12, top: 10 }}>
+                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
+                      <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#0f172a",
+                          border: "1px solid #334155",
+                          borderRadius: 8,
+                          color: "#e2e8f0",
+                        }}
+                      />
+                      <Legend />
+                      <Line
+                        dataKey="failureProbability"
+                        dot={false}
+                        name="Failure %"
+                        stroke="#fb7185"
+                        strokeWidth={2.5}
+                      />
+                      <Line dataKey="temperature" dot={false} name="Temp °C" stroke="#f59e0b" strokeWidth={2.5} />
+                      <Line dataKey="vibration" dot={false} name="Vibration" stroke="#38bdf8" strokeWidth={2.5} />
+                      <Line dataKey="healthScore" dot={false} name="Health" stroke="#34d399" strokeWidth={2.5} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-500">Preparing chart...</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Priority Bearing</CardTitle>
+              <CardDescription>Bearing có rủi ro cao nhất hiện tại</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {mostCritical ? (
+                <div className="space-y-5">
+                  <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">
+                          {mostCritical.id}
+                        </p>
+                        <h3 className="mt-2 font-headline text-xl font-bold text-white">{mostCritical.name}</h3>
+                        <p className="mt-1 text-sm text-slate-300">{mostCritical.assetName}</p>
+                      </div>
+                      <AlertTriangle className="h-6 w-6 text-rose-300" />
+                    </div>
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <MiniStat label="Failure" value={`${Math.round(mostCritical.failureProbability)}%`} />
+                      <MiniStat label="RUL" value={`${Math.round(mostCritical.rul)}h`} />
+                      <MiniStat label="Temp" value={`${Math.round(mostCritical.temperature)}°C`} />
+                    </div>
+                  </div>
+                  <Link
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-400"
+                    href={`/bearings/${encodeURIComponent(mostCritical.id)}`}
+                  >
+                    Xem chi tiết bearing
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex h-44 items-center justify-center text-sm text-slate-500">Loading bearing data...</div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <Card>
             <CardHeader>
               <CardTitle>Risk Distribution</CardTitle>
-              <CardDescription>Status distribution across the monitored bearing fleet</CardDescription>
+              <CardDescription>Tỷ lệ trạng thái của toàn bộ bearing</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -275,7 +288,7 @@ export function DashboardPage() {
             <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
                 <CardTitle>Bearing Watchlist</CardTitle>
-                <CardDescription>Select a bearing to open the detailed view</CardDescription>
+                <CardDescription>Click vào một bearing để mở trang chi tiết</CardDescription>
               </div>
               <Badge>{data?.totals.bearings ?? 0} Bearings</Badge>
             </CardHeader>
@@ -312,47 +325,60 @@ export function DashboardPage() {
                       </p>
                     </div>
                     <Badge variant={statusVariant(bearing.status)}>{statusLabel(bearing.status)}</Badge>
-                    <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.failureProbability)}%</span>
+                    <span className="text-sm font-semibold text-slate-200">
+                      {Math.round(bearing.failureProbability)}%
+                    </span>
                     <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.rul)}h</span>
                   </Link>
                 ))}
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">Nginx Health Check</p>
-              <p className="mt-2 text-sm font-semibold text-white">{health?.ok ? "GET /api/health OK" : "Waiting for /api/health response"}</p>
-              <p className="mt-1 text-xs text-slate-300">
-                {health
-                  ? `${health.service} · ${formatTime(health.checkedAt)}`
-                  : "This panel confirms the frontend can resolve /api/health through the current proxy path."}
-              </p>
-            </div>
-            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Proxy OK" : "Checking"}</Badge>
-          </div>
-        </div>
+        </section>
       </div>
-    </AnalyticsShell>
+    </AppShell>
   );
 }
 
-function QuickAlert({ color, icon, label }: { color: "red" | "blue" | "green"; icon: string; label: string }) {
-  const tone = {
-    red: "bg-red-600/90 border-red-500/20 hover:bg-red-600",
-    blue: "bg-blue-600/90 border-blue-500/20 hover:bg-blue-600",
-    green: "bg-green-600/90 border-green-500/20 hover:bg-green-600",
-  }[color];
+function MetricCard({
+  icon,
+  label,
+  value,
+  subtext,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  subtext: string;
+  tone: "rose" | "amber" | "emerald" | "blue";
+}) {
+  const toneClass = {
+    rose: "bg-rose-500/10 text-rose-300",
+    amber: "bg-amber-500/10 text-amber-300",
+    emerald: "bg-emerald-500/10 text-emerald-300",
+    blue: "bg-blue-500/10 text-blue-300",
+  }[tone];
 
   return (
-    <button className={cn("group flex items-center gap-4 rounded-xl border p-4 text-white shadow-lg transition-all duration-300 hover:-translate-y-1", tone)}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
-        <span className="material-symbols-outlined">{icon}</span>
-      </div>
-      <span className="text-sm font-bold uppercase tracking-wider">{label}</span>
-    </button>
+    <Card>
+      <CardContent className="p-6">
+        <div className="mb-8 flex items-start justify-between">
+          <div className={cn("flex h-11 w-11 items-center justify-center rounded-lg", toneClass)}>{icon}</div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+        </div>
+        <p className="font-headline text-4xl font-bold leading-none text-white">{value}</p>
+        <p className="mt-3 text-sm text-slate-400">{subtext}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-950/60 p-3 text-center">
+      <p className="font-headline text-lg font-bold text-white">{value}</p>
+      <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+    </div>
   );
 }

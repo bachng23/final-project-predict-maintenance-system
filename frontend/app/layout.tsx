@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Inter, Manrope } from "next/font/google";
-import Script from "next/script";
 
 import "./globals.css";
 
@@ -26,19 +25,8 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className={`${inter.variable} ${manrope.variable} font-body`}>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`
-            (function () {
-              try {
-                var theme = localStorage.getItem("architect-hub-theme") || "dark";
-                document.documentElement.classList.toggle("dark", theme === "dark");
-                document.documentElement.dataset.theme = theme;
-              } catch (e) {}
-            })();
-          `}
-        </Script>
         {children}
       </body>
     </html>

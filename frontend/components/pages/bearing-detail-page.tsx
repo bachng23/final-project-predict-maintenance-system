@@ -82,15 +82,17 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const failureProbability = latest?.failureProbability ?? bearing?.failureProbability ?? 0;
 
   return (
-    <AppShell active="bearing" status={data?.source ?? "demo"} title={`Bearing Detail ${bearing?.id ?? bearingId}`}>
+    <AppShell active="bearing" status={data?.source ?? "demo"} title={`Chi tiết Bearing ${bearing?.id ?? bearingId}`}>
       <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <Link className="inline-flex items-center gap-2 text-sm font-semibold text-blue-300 hover:text-blue-200" href="/">
               <ArrowLeft className="h-4 w-4" />
-              Back to dashboard
+              Quay lại Dashboard
             </Link>
-            <h1 className="mt-4 font-headline text-3xl font-bold text-white">{bearing?.name ?? "Loading bearing detail"}</h1>
+            <h1 className="mt-4 font-headline text-3xl font-bold text-white">
+              {bearing?.name ?? "Loading bearing detail"}
+            </h1>
             <p className="mt-2 text-sm text-slate-400">
               {bearing?.assetName ?? "Waiting for backend data"} · {bearing?.location ?? "Unknown location"}
             </p>
@@ -118,7 +120,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Failure Risk</CardTitle>
-              <CardDescription>Predicted failure probability</CardDescription>
+              <CardDescription>Xác suất lỗi dự báo</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Failure Probability" tone={failureTone(failureProbability)} value={failureProbability} />
@@ -128,7 +130,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card className="bg-[linear-gradient(135deg,#111827,#0f172a_52%,#1f2937)]">
             <CardHeader>
               <CardTitle>Operating Snapshot</CardTitle>
-              <CardDescription>Latest values from the telemetry stream</CardDescription>
+              <CardDescription>Thông số mới nhất từ telemetry stream</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -147,7 +149,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
               <CardTitle>Telemetry Time-series</CardTitle>
-              <CardDescription>Recent 24-hour trend across vibration, temperature, failure risk, and RUL</CardDescription>
+              <CardDescription>Recharts chart cho dữ liệu 24 giờ gần nhất</CardDescription>
             </div>
             <Badge variant="default">24h Range</Badge>
           </CardHeader>
@@ -159,7 +161,13 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
                     <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="time" minTickGap={24} stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
                     <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} yAxisId="left" />
-                    <YAxis orientation="right" stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} yAxisId="right" />
+                    <YAxis
+                      orientation="right"
+                      stroke="#94a3b8"
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      yAxisId="right"
+                    />
                     <Tooltip
                       contentStyle={{
                         background: "#0f172a",
@@ -169,10 +177,38 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
                       }}
                     />
                     <Legend />
-                    <Line dataKey="vibration" dot={false} name="Vibration mm/s" stroke="#38bdf8" strokeWidth={2.5} yAxisId="left" />
-                    <Line dataKey="temperature" dot={false} name="Temperature °C" stroke="#f59e0b" strokeWidth={2.5} yAxisId="left" />
-                    <Line dataKey="failureProbability" dot={false} name="Failure %" stroke="#fb7185" strokeWidth={2.5} yAxisId="right" />
-                    <Line dataKey="rul" dot={false} name="RUL hours" stroke="#34d399" strokeWidth={2.5} yAxisId="right" />
+                    <Line
+                      dataKey="vibration"
+                      dot={false}
+                      name="Vibration mm/s"
+                      stroke="#38bdf8"
+                      strokeWidth={2.5}
+                      yAxisId="left"
+                    />
+                    <Line
+                      dataKey="temperature"
+                      dot={false}
+                      name="Temperature °C"
+                      stroke="#f59e0b"
+                      strokeWidth={2.5}
+                      yAxisId="left"
+                    />
+                    <Line
+                      dataKey="failureProbability"
+                      dot={false}
+                      name="Failure %"
+                      stroke="#fb7185"
+                      strokeWidth={2.5}
+                      yAxisId="right"
+                    />
+                    <Line
+                      dataKey="rul"
+                      dot={false}
+                      name="RUL hours"
+                      stroke="#34d399"
+                      strokeWidth={2.5}
+                      yAxisId="right"
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
@@ -186,7 +222,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader>
               <CardTitle>Recent Telemetry Samples</CardTitle>
-              <CardDescription>Latest records from the live telemetry stream</CardDescription>
+              <CardDescription>Mẫu dữ liệu mới nhất từ stream</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-lg border border-slate-800">
@@ -219,14 +255,26 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader>
               <CardTitle>Maintenance Recommendation</CardTitle>
-              <CardDescription>Rule-based guidance derived from the current metrics</CardDescription>
+              <CardDescription>Rule-based summary từ metric hiện tại</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Recommendation active={failureProbability >= 70} text="Prioritize this bearing for immediate inspection during the current operating shift." />
-                <Recommendation active={(latest?.temperature ?? bearing?.temperature ?? 0) >= 80} text="Temperature is elevated; inspect lubrication quality and shaft load." />
-                <Recommendation active={(latest?.vibration ?? bearing?.vibration ?? 0) >= 4.5} text="Vibration exceeds the target band; schedule spectrum analysis and rebalancing." />
-                <Recommendation active={(latest?.rul ?? bearing?.rul ?? 999) < 160} text="Remaining useful life is low; prepare the work order and replacement parts." />
+                <Recommendation
+                  active={failureProbability >= 70}
+                  text="Ưu tiên kiểm tra bearing trong ca vận hành hiện tại."
+                />
+                <Recommendation
+                  active={(latest?.temperature ?? bearing?.temperature ?? 0) >= 80}
+                  text="Nhiệt độ cao, kiểm tra bôi trơn và tải trục."
+                />
+                <Recommendation
+                  active={(latest?.vibration ?? bearing?.vibration ?? 0) >= 4.5}
+                  text="Rung động vượt ngưỡng, cần phân tích phổ và cân bằng lại cụm quay."
+                />
+                <Recommendation
+                  active={(latest?.rul ?? bearing?.rul ?? 999) < 160}
+                  text="RUL thấp, chuẩn bị work order và phụ tùng thay thế."
+                />
               </div>
             </CardContent>
           </Card>

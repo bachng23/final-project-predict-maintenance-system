@@ -4,4 +4,3 @@ out
 dist
 *.log
 .env*
-stitch-archive/

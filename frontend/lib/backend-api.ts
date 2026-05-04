@@ -44,20 +44,6 @@ export type DashboardData = {
   source: "backend" | "demo";
 };
 
-export type HealthCheck = {
-  ok: boolean;
-  service: string;
-  checkedAt: string;
-};
-
-type RawHealthResponse = {
-  status?: string;
-  message?: string;
-  ok?: boolean;
-  service?: string;
-  checkedAt?: string;
-};
-
 export type BearingDetailData = {
   bearing: BearingSummary;
   telemetry: TelemetryPoint[];
@@ -91,6 +77,14 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+function unwrapPayload(value: unknown) {
+  const record = asRecord(value);
+  if ("data" in record) {
+    return record.data;
+  }
+  return value;
+}
+
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -107,9 +101,17 @@ function asStatus(value: unknown, failureProbability: number): BearingStatus {
     return status;
   }
 
+  if (status === "healthy") return "normal";
+
   if (failureProbability >= 70) return "critical";
   if (failureProbability >= 35) return "warning";
   return "normal";
+}
+
+function asPercent(value: unknown, fallback = 0) {
+  const number = asNumber(value, fallback);
+  if (number <= 1) return number * 100;
+  return number;
 }
 
 function unwrapArray(value: unknown, keys: string[]) {
@@ -126,24 +128,45 @@ function unwrapArray(value: unknown, keys: string[]) {
 
 function normalizeBearing(value: unknown, index = 0): BearingSummary {
   const bearing = asRecord(value);
-  const failureProbability = asNumber(
-    bearing.failureProbability ?? bearing.failure_probability ?? bearing.failure_prob ?? bearing.risk,
+  const failureProbability = asPercent(
+    bearing.failureProbability ??
+      bearing.failure_probability ??
+      bearing.failure_prob ??
+      bearing.risk ??
+      bearing.anomalyScore ??
+      bearing.anomaly_score,
     12,
   );
 
   return {
     id: asString(bearing.id ?? bearing.bearingId ?? bearing.bearing_id, `BRG-${index + 1}`),
-    name: asString(bearing.name ?? bearing.bearingName ?? bearing.bearing_name, `Bearing ${index + 1}`),
+    name: asString(
+      bearing.name ?? bearing.bearingName ?? bearing.bearing_name ?? bearing.machineName,
+      `Bearing ${index + 1}`,
+    ),
     assetName: asString(bearing.assetName ?? bearing.asset_name ?? bearing.machineName, "Thermal Press"),
     location: asString(bearing.location ?? bearing.line ?? bearing.area, "Line A"),
     status: asStatus(bearing.status, failureProbability),
     healthScore: asNumber(bearing.healthScore ?? bearing.health_score ?? bearing.health, 88),
     failureProbability,
-    rul: asNumber(bearing.rul ?? bearing.remainingUsefulLife ?? bearing.remaining_useful_life, 450),
-    temperature: asNumber(bearing.temperature ?? bearing.temp, 72),
-    vibration: asNumber(bearing.vibration ?? bearing.vibrationRms ?? bearing.vibration_rms, 3.2),
+    rul: asNumber(
+      bearing.rul ??
+        bearing.remainingUsefulLife ??
+        bearing.remaining_useful_life ??
+        bearing.predictedFailureHours ??
+        bearing.predicted_failure_hours,
+      450,
+    ),
+    temperature: asNumber(bearing.temperature ?? bearing.temp ?? bearing.temperatureC, 72),
+    vibration: asNumber(
+      bearing.vibration ?? bearing.vibrationRms ?? bearing.vibration_rms ?? bearing.vibrationMmS,
+      3.2,
+    ),
     pressure: asNumber(bearing.pressure, 5.1),
-    updatedAt: asString(bearing.updatedAt ?? bearing.updated_at ?? bearing.timestamp, new Date().toISOString()),
+    updatedAt: asString(
+      bearing.updatedAt ?? bearing.updated_at ?? bearing.timestamp ?? bearing.lastUpdated,
+      new Date().toISOString(),
+    ),
   };
 }
 
@@ -156,15 +179,27 @@ function normalizeTelemetryPoint(value: unknown, index = 0): TelemetryPoint {
 
   return {
     timestamp,
-    vibration: asNumber(point.vibration ?? point.vibrationRms ?? point.vibration_rms, 2.8),
-    temperature: asNumber(point.temperature ?? point.temp, 70),
+    vibration: asNumber(point.vibration ?? point.vibrationRms ?? point.vibration_rms ?? point.vibrationMmS, 2.8),
+    temperature: asNumber(point.temperature ?? point.temp ?? point.temperatureC, 70),
     pressure: asNumber(point.pressure, 5),
     healthScore: asNumber(point.healthScore ?? point.health_score ?? point.health, 88),
-    failureProbability: asNumber(
-      point.failureProbability ?? point.failure_probability ?? point.failure_prob ?? point.risk,
+    failureProbability: asPercent(
+      point.failureProbability ??
+        point.failure_probability ??
+        point.failure_prob ??
+        point.risk ??
+        point.anomalyScore ??
+        point.anomaly_score,
       14,
     ),
-    rul: asNumber(point.rul ?? point.remainingUsefulLife ?? point.remaining_useful_life, 450),
+    rul: asNumber(
+      point.rul ??
+        point.remainingUsefulLife ??
+        point.remaining_useful_life ??
+        point.predictedFailureHours ??
+        point.predicted_failure_hours,
+      450,
+    ),
     rpm: asNumber(point.rpm ?? point.speed, 1460),
   };
 }
@@ -186,28 +221,47 @@ function average(values: number[]) {
 }
 
 function normalizeDashboard(raw: unknown): DashboardData {
-  const record = asRecord(raw);
+  const record = asRecord(unwrapPayload(raw));
+  const summary = asRecord(record.summary);
   const bearings = unwrapArray(record.bearings ?? record.assets ?? raw, ["bearings", "assets", "data"]).map(
     normalizeBearing,
   );
-  const telemetry = unwrapArray(record.telemetry ?? record.series ?? record.timeSeries, [
+  const telemetrySource = record.fleetTrend ?? record.telemetry ?? record.series ?? record.timeSeries;
+  const telemetry = unwrapArray(telemetrySource, [
+    "fleetTrend",
     "telemetry",
     "series",
     "timeSeries",
     "data",
   ]).map(normalizeTelemetryPoint);
-  const totals = computeTotals(bearings);
+  const derivedTotals = computeTotals(bearings);
+  const totals = {
+    bearings: asNumber(summary.totalBearings, derivedTotals.bearings),
+    normal: asNumber(summary.healthyCount, derivedTotals.normal),
+    warning: asNumber(summary.warningCount, derivedTotals.warning),
+    critical: asNumber(summary.criticalCount, derivedTotals.critical),
+    offline: derivedTotals.offline,
+  };
 
   return {
     generatedAt: asString(record.generatedAt ?? record.generated_at ?? record.timestamp, new Date().toISOString()),
     totals,
-    avgHealthScore: asNumber(record.avgHealthScore ?? record.avg_health_score, average(bearings.map((b) => b.healthScore))),
+    avgHealthScore: asNumber(
+      record.avgHealthScore ?? record.avg_health_score ?? summary.averageHealth,
+      average(bearings.map((b) => b.healthScore)),
+    ),
     avgFailureProbability: asNumber(
       record.avgFailureProbability ?? record.avg_failure_probability,
       average(bearings.map((b) => b.failureProbability)),
     ),
-    avgRul: asNumber(record.avgRul ?? record.avg_rul, average(bearings.map((b) => b.rul))),
-    activeAlerts: asNumber(record.activeAlerts ?? record.active_alerts, totals.warning + totals.critical),
+    avgRul: asNumber(
+      record.avgRul ?? record.avg_rul,
+      average(bearings.map((b) => b.rul)),
+    ),
+    activeAlerts: asNumber(
+      record.activeAlerts ?? record.active_alerts ?? summary.maintenanceDueSoon,
+      totals.warning + totals.critical,
+    ),
     bearings,
     telemetry,
     source: "backend",
@@ -307,34 +361,12 @@ function demoDashboard(): DashboardData {
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
   try {
-    const dashboard = normalizeDashboard(await getJson("/api/dashboard", signal));
+    const dashboard = normalizeDashboard(await getJson("/api/v1/bearings/overview", signal));
 
     if (dashboard.bearings.length) {
       return {
         ...dashboard,
         telemetry: dashboard.telemetry.length ? dashboard.telemetry : demoTelemetry(),
-      };
-    }
-  } catch {
-    // Fall through to the bearing endpoint and finally demo data.
-  }
-
-  try {
-    const bearings = unwrapArray(await getJson("/api/bearings", signal), ["bearings", "assets", "data"]).map(
-      normalizeBearing,
-    );
-    if (bearings.length) {
-      const totals = computeTotals(bearings);
-      return {
-        generatedAt: new Date().toISOString(),
-        totals,
-        avgHealthScore: average(bearings.map((bearing) => bearing.healthScore)),
-        avgFailureProbability: average(bearings.map((bearing) => bearing.failureProbability)),
-        avgRul: average(bearings.map((bearing) => bearing.rul)),
-        activeAlerts: totals.warning + totals.critical,
-        bearings,
-        telemetry: demoTelemetry(),
-        source: "backend",
       };
     }
   } catch {
@@ -346,14 +378,23 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardDat
 
 export async function fetchBearingDetail(id: string, signal?: AbortSignal): Promise<BearingDetailData> {
   try {
-    const [bearingRaw, telemetryRaw] = await Promise.all([
-      getJson(`/api/bearings/${encodeURIComponent(id)}`, signal),
-      getJson(`/api/bearings/${encodeURIComponent(id)}/telemetry?range=24h`, signal),
-    ]);
+    const detail = asRecord(unwrapPayload(await getJson(`/api/v1/bearings/${encodeURIComponent(id)}`, signal)));
+    const telemetry = unwrapArray(detail.trend, ["trend", "telemetry", "series", "timeSeries"]).map(
+      normalizeTelemetryPoint,
+    );
+    const bearing = normalizeBearing(detail);
 
     return {
-      bearing: normalizeBearing(asRecord(bearingRaw).bearing ?? bearingRaw),
-      telemetry: unwrapArray(telemetryRaw, ["telemetry", "series", "timeSeries", "data"]).map(normalizeTelemetryPoint),
+      bearing,
+      telemetry: telemetry.length
+        ? telemetry.map((point, index) => ({
+            ...point,
+            rul:
+              point.rul !== 450
+                ? point.rul
+                : Math.max(0, Math.round(bearing.rul - (telemetry.length - 1 - index) * 4)),
+          }))
+        : demoTelemetry(demoBearings.findIndex((item) => item.id === bearing.id)),
       source: "backend",
     };
   } catch {
@@ -364,14 +405,4 @@ export async function fetchBearingDetail(id: string, signal?: AbortSignal): Prom
       source: "demo",
     };
   }
-}
-
-export async function fetchHealth(signal?: AbortSignal): Promise<HealthCheck> {
-  const raw = await getJson<RawHealthResponse>("/api/health", signal);
-
-  return {
-    ok: raw.ok ?? String(raw.status ?? "").toUpperCase() === "OK",
-    service: raw.service ?? raw.message ?? "backend-health",
-    checkedAt: raw.checkedAt ?? new Date().toISOString(),
-  };
 }

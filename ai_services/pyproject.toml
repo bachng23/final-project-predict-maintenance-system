@@ -7,12 +7,12 @@ requires-python = ">=3.12.10"
 dependencies = [
     "asyncpg>=0.31.0",
     "datetime>=6.0",
-    "fastapi>=0.121.0",
     "pydantic>=2.13.3",
     "pydantic-settings>=2.14.0",
     "minio>=7.2",
     "aiokafka>=0.14.0",
     "redis>=7.4.0",
     "numpy>=2.4.4",
-    "uvicorn[standard]>=0.38.0",
+    "fastapi>=0.136.1",
+    "uvicorn[standard]>=0.46.0",
 ]
