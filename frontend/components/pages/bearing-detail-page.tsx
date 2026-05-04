@@ -137,7 +137,11 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
                 <SnapshotItem icon={<Waves className="h-4 w-4" />} label="Vibration RMS" value={`${(latest?.vibration ?? bearing?.vibration ?? 0).toFixed(2)} mm/s`} />
                 <SnapshotItem icon={<Thermometer className="h-4 w-4" />} label="Temperature" value={`${(latest?.temperature ?? bearing?.temperature ?? 0).toFixed(1)} °C`} />
                 <SnapshotItem icon={<Gauge className="h-4 w-4" />} label="Pressure" value={`${(latest?.pressure ?? bearing?.pressure ?? 0).toFixed(2)} bar`} />
-                <SnapshotItem icon={<RotateCw className="h-4 w-4" />} label="RPM" value={`${Math.round(latest?.rpm ?? bearing?.rpm ?? 0).toLocaleString("en-US")}`} />
+                <SnapshotItem
+                  icon={<RotateCw className="h-4 w-4" />}
+                  label="RPM"
+                  value={`${Math.round(latest?.rpm ?? bearing?.rpm ?? 0).toLocaleString("en-US")}`}
+                />
                 <SnapshotItem icon={<Clock3 className="h-4 w-4" />} label="RUL" value={`${Math.round(latest?.rul ?? bearing?.rul ?? 0)} hours`} />
                 <SnapshotItem icon={<ShieldAlert className="h-4 w-4" />} label="Updated" value={formatDateTime(bearing?.updatedAt ?? new Date().toISOString())} />
               </div>

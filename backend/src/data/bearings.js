@@ -4,7 +4,7 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function buildTrend({ vibrationBase, temperatureBase, healthBase, loadBase, anomalyBase }) {
+function buildTrend({ vibrationBase, temperatureBase, healthBase, loadBase, anomalyBase, rpmBase, pressureBase, rulBase }) {
   return Array.from({ length: 24 }, (_, index) => {
     const wave = Math.sin(index / 3.2);
     const drift = index / 18;
@@ -13,6 +13,9 @@ function buildTrend({ vibrationBase, temperatureBase, healthBase, loadBase, anom
     const healthScore = Math.round(clamp(healthBase - drift * 3.4 + wave * 2.8, 18, 99));
     const loadPct = Math.round(clamp(loadBase + Math.cos(index / 4.1) * 9 + drift * 2.5, 32, 96));
     const anomalyScore = Number(clamp(anomalyBase + drift * 0.03 + Math.max(0, wave) * 0.06, 0.05, 0.98).toFixed(2));
+    const pressure = Number((pressureBase + Math.cos(index / 4.4) * 0.12 + drift * 0.05).toFixed(2));
+    const rpm = Math.round(clamp(rpmBase + wave * 22 - drift * 4, 900, 3600));
+    const predictedFailureHours = Math.round(clamp(rulBase - drift * 28 - Math.max(0, wave) * 18, 6, 2000));
 
     return {
       timestamp: new Date(BASE_TIME - (23 - index) * 60 * 60 * 1000).toISOString(),
@@ -20,7 +23,10 @@ function buildTrend({ vibrationBase, temperatureBase, healthBase, loadBase, anom
       temperature,
       healthScore,
       loadPct,
-      anomalyScore
+      anomalyScore,
+      pressure,
+      rpm,
+      predictedFailureHours
     };
   });
 }
@@ -45,7 +51,10 @@ const bearings = [
       temperatureBase: 61.5,
       healthBase: 95,
       loadBase: 65,
-      anomalyBase: 0.1
+      anomalyBase: 0.1,
+      rpmBase: 1780,
+      pressureBase: 4.82,
+      rulBase: 640
     })
   },
   {
@@ -67,7 +76,10 @@ const bearings = [
       temperatureBase: 74.8,
       healthBase: 80,
       loadBase: 76,
-      anomalyBase: 0.36
+      anomalyBase: 0.36,
+      rpmBase: 1560,
+      pressureBase: 5.08,
+      rulBase: 168
     })
   },
   {
@@ -89,7 +101,10 @@ const bearings = [
       temperatureBase: 87.4,
       healthBase: 52,
       loadBase: 84,
-      anomalyBase: 0.72
+      anomalyBase: 0.72,
+      rpmBase: 1490,
+      pressureBase: 5.34,
+      rulBase: 26
     })
   },
   {
@@ -111,7 +126,10 @@ const bearings = [
       temperatureBase: 57,
       healthBase: 92,
       loadBase: 58,
-      anomalyBase: 0.08
+      anomalyBase: 0.08,
+      rpmBase: 1840,
+      pressureBase: 4.76,
+      rulBase: 520
     })
   }
 ];
@@ -128,12 +146,22 @@ function buildFleetTrend() {
     const vibration = Number(
       (snapshots.reduce((sum, item) => sum + item.vibration, 0) / snapshots.length).toFixed(2)
     );
+    const failureProbability = Number(
+      (
+        snapshots.reduce((sum, item) => sum + item.anomalyScore * 100, 0) / snapshots.length
+      ).toFixed(1)
+    );
+    const rul = Math.round(
+      snapshots.reduce((sum, item) => sum + item.predictedFailureHours, 0) / snapshots.length
+    );
 
     return {
       timestamp: point.timestamp,
       healthScore,
       temperature,
-      vibration
+      vibration,
+      failureProbability,
+      rul
     };
   });
 }
