@@ -77,6 +77,14 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+function unwrapPayload(value: unknown) {
+  const record = asRecord(value);
+  if ("data" in record) {
+    return record.data;
+  }
+  return value;
+}
+
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -213,7 +221,7 @@ function average(values: number[]) {
 }
 
 function normalizeDashboard(raw: unknown): DashboardData {
-  const record = asRecord(raw);
+  const record = asRecord(unwrapPayload(raw));
   const summary = asRecord(record.summary);
   const bearings = unwrapArray(record.bearings ?? record.assets ?? raw, ["bearings", "assets", "data"]).map(
     normalizeBearing,
@@ -362,28 +370,6 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardDat
       };
     }
   } catch {
-    // Fall through to the bearing endpoint and finally demo data.
-  }
-
-  try {
-    const bearings = unwrapArray(await getJson("/api/bearings", signal), ["bearings", "assets", "data"]).map(
-      normalizeBearing,
-    );
-    if (bearings.length) {
-      const totals = computeTotals(bearings);
-      return {
-        generatedAt: new Date().toISOString(),
-        totals,
-        avgHealthScore: average(bearings.map((bearing) => bearing.healthScore)),
-        avgFailureProbability: average(bearings.map((bearing) => bearing.failureProbability)),
-        avgRul: average(bearings.map((bearing) => bearing.rul)),
-        activeAlerts: totals.warning + totals.critical,
-        bearings,
-        telemetry: demoTelemetry(),
-        source: "backend",
-      };
-    }
-  } catch {
     // Fallback lets the UI be developed while the backend endpoint is offline.
   }
 
@@ -392,7 +378,7 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardDat
 
 export async function fetchBearingDetail(id: string, signal?: AbortSignal): Promise<BearingDetailData> {
   try {
-    const detail = asRecord(await getJson(`/api/v1/bearings/${encodeURIComponent(id)}`, signal));
+    const detail = asRecord(unwrapPayload(await getJson(`/api/v1/bearings/${encodeURIComponent(id)}`, signal)));
     const telemetry = unwrapArray(detail.trend, ["trend", "telemetry", "series", "timeSeries"]).map(
       normalizeTelemetryPoint,
     );
