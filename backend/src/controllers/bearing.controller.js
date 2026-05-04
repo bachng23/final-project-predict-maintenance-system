@@ -7,7 +7,7 @@ const bearingService = require('../services/bearing.service');
 const getBearings = async (req, res, next) => {
   try {
     const bearings = await bearingService.getAllBearingsWithLatestStatus();
-    
+
     res.json({
       success: true,
       count: bearings.length,
