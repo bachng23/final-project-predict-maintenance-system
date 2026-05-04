@@ -36,10 +36,91 @@ services:
       context: ./ai_services
     container_name: ai_backend
     restart: always
+    env_file:
+      - .env
     expose:
       - "8000"
     networks:
       - predictive_maintenance_net
+
+  ai_predictor:
+    build:
+      context: ./ai_services
+      dockerfile: predictor/Dockerfile
+    container_name: ai_predictor
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+      - minio
+    networks:
+      - predictive_maintenance_net
+
+  ai_orchestrator:
+    build:
+      context: ./ai_services
+      dockerfile: orchestrator/Dockerfile
+    container_name: ai_orchestrator
+    restart: always
+    env_file:
+      - .env
+    expose:
+      - "8001"
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+    networks:
+      - predictive_maintenance_net
+
+  ai_anomaly:
+    build:
+      context: ./ai_services
+      dockerfile: anomaly/Dockerfile
+    container_name: ai_anomaly
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+    networks:
+      - predictive_maintenance_net
+
+  ai_ingestion:
+    build:
+      context: ./ai_services
+      dockerfile: ingestion/Dockerfile
+    container_name: ai_ingestion
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redpanda
+      - minio
+    networks:
+      - predictive_maintenance_net
+
+  ai_signal_processor:
+    build:
+      context: ./ai_services
+      dockerfile: signal_processor/Dockerfile
+    container_name: ai_signal_processor
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redpanda
+      - minio
+    networks:
+      - predictive_maintenance_net
+
   postgre_db:
     image: postgres:16.13-alpine
     container_name: postgre_db
