@@ -20,26 +20,59 @@ services:
   web_backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     container_name: web_backend
     restart: always
     env_file:
       - .env
     environment:
       PORT: 5000
+      HOST: 0.0.0.0
+      CLIENT_URL: http://localhost
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgre_db:5432/${POSTGRES_DB}
+      POSTGRES_HOST: postgre_db
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis_cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     expose:
       - "5000"
+    depends_on:
+      - postgre_db
+      - redis_cache
     networks:
       - predictive_maintenance_net
 
   ai_backend:
     build:
       context: ./ai_services
+      dockerfile: Dockerfile
     container_name: ai_backend
     restart: always
     env_file:
       - .env
+    environment:
+      PORT: 8000
+      HOST: 0.0.0.0
+      POSTGRES_HOST: postgre_db
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis_cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDPANDA_HOST: redpanda
+      REDPANDA_PORT: 9092
+      MINIO_HOST: minio
+      MINIO_PORT: 9000
+      MLFLOW_HOST: mlflow
+      MLFLOW_PORT: 5000
     expose:
       - "8000"
+    depends_on:
+      - postgre_db
+      - redis_cache
+      - redpanda
+      - minio
+      - mlflow
     networks:
       - predictive_maintenance_net
 
@@ -132,7 +165,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -142,9 +175,11 @@ services:
     image: redis:7.2.4-alpine
     container_name: redis_cache
     restart: always
-    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    env_file:
+      - .env
+    command: redis-server --appendonly yes --maxmemory-policy noeviction --requirepass ${REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -172,8 +207,8 @@ services:
       - --advertise-kafka-addr
       - PLAINTEXT://redpanda:9092
     ports:
-      - "9092:9092"
-      - "9644:9644"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9644:9644"
     networks:
       - predictive_maintenance_net
 
@@ -186,8 +221,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -208,7 +243,7 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     depends_on:
       - postgre_db
       - minio
@@ -235,8 +270,8 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
     ports:
-      - "8123:8123"
-      - "9009:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9009:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
@@ -263,7 +298,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD}@redis_cache:6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
@@ -303,7 +338,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD}@redis_cache:6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
@@ -319,7 +354,7 @@ services:
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     networks:
       - predictive_maintenance_net
 
@@ -332,7 +367,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -350,37 +385,36 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
       - predictive_maintenance_net
-  
+
   adminer:
     image: adminer:5.4.2
     container_name: adminer
     restart: always
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - postgre_db
     networks:
       - predictive_maintenance_net
-  
+
   redis_insight:
     image: redis/redisinsight:3.2.0
     container_name: redis_insight
     restart: always
     ports:
-      - "5540:5540"
+      - "127.0.0.1:5540:5540"
     depends_on:
       - redis_cache
     networks:
       - predictive_maintenance_net
-  
-    
+
 volumes:
   postgres_data:
   redis_data:
