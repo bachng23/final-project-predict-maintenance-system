@@ -1,1 +1,16 @@
+anomaly:
+  p_fail_critical: 0.70
+  p_fail_high: 0.45
+  hybrid_score_min: 0.55
 
+  health_score_low: 35.0
+  rul_critical_min: 60.0
+
+negotiation:
+  max_round: 2
+  safety_veto_threshold: 0.80
+
+priority:
+  critical_p_fail: 0.70
+  high_p_fail: 0.45
+  medium_p_fail: 0.20
