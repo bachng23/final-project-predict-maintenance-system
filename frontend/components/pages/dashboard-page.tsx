@@ -20,7 +20,7 @@ import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
+import { type BearingStatus, type DashboardData, type HealthCheck, fetchDashboard, fetchHealth } from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
 
 function compactNumber(value: number, suffix = "") {
@@ -47,15 +47,18 @@ function statusLabel(status: BearingStatus) {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [health, setHealth] = useState<HealthCheck | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const controller = new AbortController();
     fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+    fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
 
     const timer = window.setInterval(() => {
       fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+      fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
     }, 30000);
 
     return () => {
@@ -152,6 +155,25 @@ export function DashboardPage() {
             tone="emerald"
           />
         </section>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Nginx Health Check</CardTitle>
+              <CardDescription>
+                {health
+                  ? `${health.service} · ${formatTime(health.checkedAt)}`
+                  : "Waiting for /api/health response"}
+              </CardDescription>
+            </div>
+            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Route OK" : "Checking"}</Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-semibold text-slate-200">
+              {health?.ok ? "GET /api/health OK" : "GET /api/health is pending"}
+            </p>
+          </CardContent>
+        </Card>
 
         <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <Card>

@@ -52,6 +52,20 @@ export type BearingDetailData = {
   source: "backend" | "demo";
 };
 
+export type HealthCheck = {
+  ok: boolean;
+  service: string;
+  checkedAt: string;
+};
+
+type RawHealthResponse = {
+  ok?: boolean;
+  service?: string;
+  checkedAt?: string;
+  status?: string;
+  message?: string;
+};
+
 type BackendEnvelope<T> = {
   success?: boolean;
   count?: number;
@@ -383,4 +397,14 @@ export async function fetchBearingDetail(id: string, signal?: AbortSignal): Prom
       source: "demo",
     };
   }
+}
+
+export async function fetchHealth(signal?: AbortSignal): Promise<HealthCheck> {
+  const raw = await getJson<RawHealthResponse>("/api/health", signal);
+
+  return {
+    ok: raw.ok ?? String(raw.status ?? "").toUpperCase() === "OK",
+    service: raw.service ?? raw.message ?? "architect-hub-frontend",
+    checkedAt: raw.checkedAt ?? new Date().toISOString(),
+  };
 }
