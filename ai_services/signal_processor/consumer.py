@@ -47,13 +47,12 @@ async def handle_vibration_message(raw: bytes) -> None:
         )
         return
 
-    # 3. Feature extraction — use horizontal channel (row 0)
+    # 3. Feature extraction — pass both channels as (2, N) array
     #    RPM is derived from condition so fault bands are correct per condition.
     rpm = CONDITION_RPM.get(msg.condition, 2100)
-    h_signal: np.ndarray = signal_arr[0] if signal_arr.ndim == 2 else signal_arr
 
     try:
-        features = extract_features(h_signal, rpm=float(rpm))
+        features = extract_features(signal_arr, rpm=float(rpm))
     except Exception:
         logger.exception(
             "[%s] file_idx=%d — feature extraction failed. Skipping.",
