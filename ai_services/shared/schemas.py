@@ -22,7 +22,7 @@ class FeatureRecord(BaseModel):
     bearing_id: str = Field(..., description="Unique identifier for the bearing")
     file_idx: int = Field(..., description="Index of the file containing the features")
     sample_ts: datetime = Field(..., description="Timestamp of the sample")
-    
+
     lifetime_pct: float = Field(..., description="Percentage of the bearing's lifetime")
     features: dict[str, float] = Field(..., description="Dictionary of feature names and their values")
 
@@ -34,7 +34,7 @@ class PredictionRecord(BaseModel):
     bearing_id: str = Field(..., description="Unique identifier for the bearing")
     file_idx: int = Field(..., description="Index of the file containing the prediction")
     sample_ts: datetime = Field(..., description="Timestamp of the sample")
-    
+
     # RUL
     rul_minutes: float = Field(..., description="Predicted remaining useful life in minutes")
     rul_lower_minutes: Optional[float] = Field(None, description="Lower bound of the predicted remaining useful life in minutes")
@@ -44,7 +44,7 @@ class PredictionRecord(BaseModel):
     # Core prediction
     p_fail: float = Field(..., description="Predicted probability of failure within a certain time frame")
     health_score: float = Field(..., ge=0, le=100, description="Health score of the bearing, typically between 0 and 100")
-    
+
     # Extra model signals
     degradation_rate: Optional[float] = Field(None, description="Rate of degradation of the bearing")
     ood_flag: Optional[bool] = Field(None, description="Flag indicating if the sample is out-of-distribution")
@@ -73,7 +73,7 @@ class PredictionRecord(BaseModel):
         elif self.rul_uncertainty < 0.05:
             return 'medium'
         return 'high'
-    
+
 
 class SnapshotPayload(BaseModel):
     "Context object sent to orchestrator when anomaly triggered"
@@ -83,7 +83,7 @@ class SnapshotPayload(BaseModel):
     prediction_id: str = Field(..., description="Identifier for the prediction that triggered the snapshot")
     snapshot_ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of the snapshot")
     trigger_source: TriggerSource = Field(..., description="Source that triggered the snapshot")
-    
+
     signal_window_ref: Optional[str] = Field(None, description="Reference to the signal window that led to the anomaly trigger")
     feature_vector_ref: Optional[str] = Field(None, description="Reference to the feature vector that led to the anomaly trigger")
 
@@ -99,22 +99,22 @@ class AgentTranscriptEntry(BaseModel):
     "A single message turn in the agent negotiation process"
 
     snapshot_id: str = Field(..., description="Identifier for the snapshot this message is associated with")
-    
+
     round_no: int = Field(..., description="Round number of the negotiation")
     agent_name: str = Field(..., description="Name of the agent sending the message")
     message_type: AgentMessageType = Field(..., description="Type of the message, e.g. PROPOSE, CRITIQUE, VOTE, SUMMARY")
     action_candidate: Optional[RecommendationAction] = Field(None, description="Recommended action proposed by the agent, if applicable")
-    
+
     confidence: Optional[float] = Field(None, description="Confidence level of the proposed action, if applicable")
     reasoning: str = Field(..., description="Detailed reasoning provided by the agent for its proposal or critique")
-    
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp when the message was created")
 
 class NegotiationRecord(BaseModel):
     "Record of the entire negotiation process for a given snapshot"
 
     snapshot_id: str = Field(..., description="Identifier for the snapshot this negotiation is associated with")
-    
+
     recommended_action: RecommendationAction = Field(..., description="Final recommended action after the negotiation process")
     recommended_confidence: Optional[float] = Field(None, description="Confidence level of the final recommended action")
     priority: PriorityLevel = Field(..., description="Priority level assigned to this case after negotiation")
@@ -134,6 +134,20 @@ class DecisionActionRequest(BaseModel):
     client_version: Optional[str] = Field(None, description="Version of the client making the request, for compatibility purposes")
 
 
+class VibrationRawMessage(BaseModel):
+    """
+    Lightweight Kafka message published by ingestion → consumed by signal_processor.
+    """
+
+    bearing_id: str = Field(..., description="XJTU-SY folder name, e.g. 'Bearing1_1'")
+    condition: int = Field(..., description="Operating condition index: 1, 2, or 3")
+    rpm: int = Field(..., description="Shaft speed in RPM for this condition")
+    file_idx: int = Field(..., description="1-based file index within the bearing run")
+    total_files: int = Field(..., description="Total CSV files in the bearing folder (for lifetime_pct)")
+    sample_ts: datetime = Field(..., description="Timestamp assigned to this sample window")
+    signal_window_ref: str = Field(..., description="MinIO object key of the saved .npy signal array")
+
+
 class DecisionActionRecord(BaseModel):
     "Record of the decision action taken by the operator"
 
@@ -141,7 +155,7 @@ class DecisionActionRecord(BaseModel):
     action: OperatorAction = Field(..., description="Action taken by the operator, e.g. APPROVE, OVERRIDE, REJECT, ACKNOWLEDGE")
     final_action: RecommendationAction = Field(..., description="Final recommended action after negotiation")
     override_reason: Optional[str] = Field(None, description="Reason for overriding the recommended action, if applicable")
-    
+
     actor_user_id: str = Field(..., description="Identifier for the user who took the action")
     actor_role: str = Field(..., description="Role of the user who took the action, e.g. OPERATOR, ENGINEER, MANAGER")
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp when the action was submitted")
