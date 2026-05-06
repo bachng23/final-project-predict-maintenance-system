@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type AnalyticsShellProps = {
-  active: "dashboard" | "bearing" | "bearings" | "analytics" | "assets" | "policy" | "settings";
+  active: "dashboard" | "analytics" | "assets" | "bearings" | "policy" | "settings" | "bearing";
   children: ReactNode;
   title?: string;
   searchPlaceholder?: string;
@@ -16,9 +16,10 @@ type AnalyticsShellProps = {
 
 const navItems = [
   { href: "/", label: "Dashboard", key: "dashboard", icon: "dashboard" },
-  { href: "/bearings", label: "Bearings", key: "bearings", icon: "precision_manufacturing" },
+  { href: "/bearings/BRG-001", label: "Bearing Detail", key: "bearing", icon: "precision_manufacturing" },
   { href: "/analytics", label: "Analytics", key: "analytics", icon: "analytics" },
   { href: "/assets", label: "Assets", key: "assets", icon: "inventory_2" },
+  { href: "/bearings", label: "Bearings", key: "bearings", icon: "settings_input_component" },
   { href: "/policy", label: "Policy Bands", key: "policy", icon: "shield" },
   { href: "/settings", label: "Settings", key: "settings", icon: "settings" },
 ] as const;

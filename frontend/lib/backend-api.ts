@@ -46,12 +46,6 @@ export type DashboardData = {
   source: "backend" | "demo";
 };
 
-export type BearingDetailData = {
-  bearing: BearingSummary;
-  telemetry: TelemetryPoint[];
-  source: "backend" | "demo";
-};
-
 export type HealthCheck = {
   ok: boolean;
   service: string;
@@ -59,11 +53,16 @@ export type HealthCheck = {
 };
 
 type RawHealthResponse = {
+  status?: string;
+  message?: string;
   ok?: boolean;
   service?: string;
   checkedAt?: string;
-  status?: string;
-  message?: string;
+};
+export type BearingDetailData = {
+  bearing: BearingSummary;
+  telemetry: TelemetryPoint[];
+  source: "backend" | "demo";
 };
 
 type BackendEnvelope<T> = {
@@ -71,7 +70,6 @@ type BackendEnvelope<T> = {
   count?: number;
   data?: T;
 };
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 
 function endpoint(path: string) {
@@ -390,7 +388,8 @@ export async function fetchBearingDetail(id: string, signal?: AbortSignal): Prom
       source: "backend",
     };
   } catch {
-    const fallback = demoDashboard().bearings.find((bearing) => bearing.id === id) ?? demoDashboard().bearings[0];
+    const fallbackDashboard = demoDashboard();
+    const fallback = fallbackDashboard.bearings.find((bearing) => bearing.id === id) ?? fallbackDashboard.bearings[0];
     return {
       bearing: fallback,
       telemetry: buildDetailTelemetry(fallback, []),
@@ -404,7 +403,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthCheck> {
 
   return {
     ok: raw.ok ?? String(raw.status ?? "").toUpperCase() === "OK",
-    service: raw.service ?? raw.message ?? "architect-hub-frontend",
+    service: raw.service ?? raw.message ?? "backend-health",
     checkedAt: raw.checkedAt ?? new Date().toISOString(),
   };
 }
