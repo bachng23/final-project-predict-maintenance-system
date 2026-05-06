@@ -8,14 +8,15 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.errors import KafkaError
 
 from shared.config import settings
-from shared.schemas import PredictionRecord, FeatureRecord, SnapshotPayload
+from shared.schemas import PredictionRecord, FeatureRecord, SnapshotPayload, VibrationRawMessage
 
 logger = logging.getLogger(__name__)
 
 # Topic names
-TOPIC_FEATURES = "pdm.features"
-TOPIC_PREDICTIONS = "pdm.predictions"
-TOPIC_SNAPSHOTS = "pdm.snapshots"
+TOPIC_VIBRATION_RAW = "vibration.raw"    # ingestion → signal_processor
+TOPIC_FEATURES = "pdm.features"          # signal_processor → predictor
+TOPIC_PREDICTIONS = "pdm.predictions"    # predictor → anomaly
+TOPIC_SNAPSHOTS = "pdm.snapshots"        # anomaly → orchestrator
 
 
 # Producer
@@ -55,22 +56,29 @@ async def _publish(topic: str, payload: dict, key: str | None = None) -> None:
 # Publish helpers
 async def publish_feature(record: FeatureRecord) -> None:
     await _publish(
-        TOPIC_FEATURES, 
-        record.model_dump(mode="json"), 
+        TOPIC_FEATURES,
+        record.model_dump(mode="json"),
         key=record.bearing_id,
     )
 
 async def publish_prediction(record: PredictionRecord) -> None:
     await _publish(
-        TOPIC_PREDICTIONS, 
-        record.model_dump(mode="json"), 
+        TOPIC_PREDICTIONS,
+        record.model_dump(mode="json"),
         key=record.bearing_id,
+    )
+
+async def publish_vibration_raw(msg: VibrationRawMessage) -> None:
+    await _publish(
+        TOPIC_VIBRATION_RAW,
+        msg.model_dump(mode="json"),
+        key=msg.bearing_id,
     )
 
 async def publish_snapshot(payload: SnapshotPayload) -> None:
     await _publish(
-        TOPIC_SNAPSHOTS, 
-        payload.model_dump(mode="json"), 
+        TOPIC_SNAPSHOTS,
+        payload.model_dump(mode="json"),
         key=payload.bearing_id,
     )
 
@@ -110,6 +118,10 @@ async def consume_loop(
     try:
         async for msg in consumer:
             try:
+                if msg.value is None:
+                    logger.debug(f"Skipping tombstone message with key={msg.key}")
+                    continue
+
                 await handler(msg.value)
                 await consumer.commit()
             except Exception as e:
