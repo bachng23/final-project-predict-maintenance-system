@@ -14,6 +14,13 @@ from shared.storage import ensure_buckets, upload_signal
 
 _CONDITION_RPM: dict[int, int] = {1: 2100, 2: 2250, 3: 2400}
 
+# Actual subfolder names inside DATA_ROOT
+_CONDITION_FOLDER: dict[int, str] = {
+    1: "35Hz12kN",
+    2: "37.5Hz11kN",
+    3: "40Hz10kN",
+}
+
 logger = logging.getLogger(__name__)
 
 # Seconds between files in real-time mode (1 sample per minute in XJTU-SY)
@@ -70,7 +77,8 @@ class XJTUProducer:
         self.speed = max(speed, 0.1)  # guard against division by zero
         self.condition = _parse_condition(bearing_id)
         self.rpm = _CONDITION_RPM[self.condition]
-        self._data_dir = Path(settings.DATA_ROOT) / bearing_id
+        condition_folder = _CONDITION_FOLDER[self.condition]
+        self._data_dir = Path(settings.DATA_ROOT) / condition_folder / bearing_id
 
     # ── Discovery ────────────────────────────────────────────────────────────
 
