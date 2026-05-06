@@ -153,6 +153,25 @@ export function DashboardPage() {
           />
         </section>
 
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Nginx Health Check</CardTitle>
+              <CardDescription>
+                {health
+                  ? `${health.service} · ${formatTime(health.checkedAt)}`
+                  : "Waiting for /api/health response"}
+              </CardDescription>
+            </div>
+            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Route OK" : "Checking"}</Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-semibold text-slate-200">
+              {health?.ok ? "GET /api/health OK" : "GET /api/health is pending"}
+            </p>
+          </CardContent>
+        </Card>
+
         <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4">
