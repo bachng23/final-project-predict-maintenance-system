@@ -53,7 +53,7 @@ def _load_csv(path: Path) -> np.ndarray:
 
     Returns shape (2, 32768) float32 array — row 0 = horizontal, row 1 = vertical.
     """
-    data = np.genfromtxt(path, delimiter=",", dtype=np.float32)
+    data = np.genfromtxt(path, delimiter=",", dtype=np.float32, skip_header=1)
     if data.ndim == 1:
         # Single-channel fallback (shouldn't happen with XJTU-SY)
         data = np.stack([data, data])
