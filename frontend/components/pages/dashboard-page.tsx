@@ -20,7 +20,7 @@ import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
+import { type BearingStatus, type DashboardData, type HealthCheck, fetchDashboard, fetchHealth } from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
 
 function compactNumber(value: number, suffix = "") {
@@ -47,15 +47,18 @@ function statusLabel(status: BearingStatus) {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [health, setHealth] = useState<HealthCheck | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const controller = new AbortController();
     fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+    fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
 
     const timer = window.setInterval(() => {
       fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+      fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
     }, 30000);
 
     return () => {
@@ -74,10 +77,7 @@ export function DashboardPage() {
   );
 
   const mostCritical = useMemo(
-    () =>
-      [...(data?.bearings ?? [])].sort(
-        (left, right) => right.failureProbability - left.failureProbability,
-      )[0],
+    () => [...(data?.bearings ?? [])].sort((left, right) => right.failureProbability - left.failureProbability)[0],
     [data],
   );
 
@@ -91,7 +91,7 @@ export function DashboardPage() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">Real-time Overview</p>
                 <h1 className="mt-2 font-headline text-3xl font-bold text-white">Machine Health Overview</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                  Tổng hợp bearing health, RUL, xác suất lỗi và cảnh báo từ Web Backend.
+                  Tong hop bearing health, RUL, xac suat loi va canh bao tu Web Backend.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
@@ -114,7 +114,7 @@ export function DashboardPage() {
           <Card className="bg-slate-900">
             <CardHeader className="pb-2">
               <CardTitle>Fleet Health Gauge</CardTitle>
-              <CardDescription>D3.js gauge từ health score trung bình</CardDescription>
+              <CardDescription>D3.js gauge tu health score trung binh</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Average Health" tone="emerald" value={data?.avgHealthScore ?? 0} />
@@ -140,25 +140,44 @@ export function DashboardPage() {
           <MetricCard
             icon={<Thermometer className="h-5 w-5" />}
             label="Hottest Bearing"
-            value={compactNumber(Math.max(...(data?.bearings.map((b) => b.temperature) ?? [0])), "°C")}
+            value={compactNumber(Math.max(...(data?.bearings.map((bearing) => bearing.temperature) ?? [0])), "°C")}
             subtext={mostCritical?.assetName ?? "Waiting for data"}
             tone="amber"
           />
           <MetricCard
             icon={<Waves className="h-5 w-5" />}
             label="Peak Vibration"
-            value={`${Math.max(...(data?.bearings.map((b) => b.vibration) ?? [0])).toFixed(1)} mm/s`}
+            value={`${Math.max(...(data?.bearings.map((bearing) => bearing.vibration) ?? [0])).toFixed(1)} mm/s`}
             subtext="RMS velocity"
             tone="emerald"
           />
         </section>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Nginx Health Check</CardTitle>
+              <CardDescription>
+                {health
+                  ? `${health.service} · ${formatTime(health.checkedAt)}`
+                  : "Waiting for /api/health response"}
+              </CardDescription>
+            </div>
+            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Route OK" : "Checking"}</Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-semibold text-slate-200">
+              {health?.ok ? "GET /api/health OK" : "GET /api/health is pending"}
+            </p>
+          </CardContent>
+        </Card>
 
         <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
                 <CardTitle>Time-series Health Engine</CardTitle>
-                <CardDescription>Recharts line chart cho vibration, temperature và failure probability</CardDescription>
+                <CardDescription>Recharts line chart cho vibration, temperature va failure probability</CardDescription>
               </div>
               <Badge variant="success">Live Chart</Badge>
             </CardHeader>
@@ -179,13 +198,7 @@ export function DashboardPage() {
                         }}
                       />
                       <Legend />
-                      <Line
-                        dataKey="failureProbability"
-                        dot={false}
-                        name="Failure %"
-                        stroke="#fb7185"
-                        strokeWidth={2.5}
-                      />
+                      <Line dataKey="failureProbability" dot={false} name="Failure %" stroke="#fb7185" strokeWidth={2.5} />
                       <Line dataKey="temperature" dot={false} name="Temp °C" stroke="#f59e0b" strokeWidth={2.5} />
                       <Line dataKey="vibration" dot={false} name="Vibration" stroke="#38bdf8" strokeWidth={2.5} />
                       <Line dataKey="healthScore" dot={false} name="Health" stroke="#34d399" strokeWidth={2.5} />
@@ -201,7 +214,7 @@ export function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Priority Bearing</CardTitle>
-              <CardDescription>Bearing có rủi ro cao nhất hiện tại</CardDescription>
+              <CardDescription>Bearing co rui ro cao nhat hien tai</CardDescription>
             </CardHeader>
             <CardContent>
               {mostCritical ? (
@@ -209,9 +222,7 @@ export function DashboardPage() {
                   <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">
-                          {mostCritical.id}
-                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{mostCritical.id}</p>
                         <h3 className="mt-2 font-headline text-xl font-bold text-white">{mostCritical.name}</h3>
                         <p className="mt-1 text-sm text-slate-300">{mostCritical.assetName}</p>
                       </div>
@@ -227,7 +238,7 @@ export function DashboardPage() {
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-400"
                     href={`/bearings/${encodeURIComponent(mostCritical.id)}`}
                   >
-                    Xem chi tiết bearing
+                    Xem chi tiet bearing
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
@@ -242,7 +253,7 @@ export function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Risk Distribution</CardTitle>
-              <CardDescription>Tỷ lệ trạng thái của toàn bộ bearing</CardDescription>
+              <CardDescription>Ty le trang thai cua toan bo bearing</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -288,7 +299,7 @@ export function DashboardPage() {
             <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
                 <CardTitle>Bearing Watchlist</CardTitle>
-                <CardDescription>Click vào một bearing để mở trang chi tiết</CardDescription>
+                <CardDescription>Click vao mot bearing de mo trang chi tiet</CardDescription>
               </div>
               <Badge>{data?.totals.bearings ?? 0} Bearings</Badge>
             </CardHeader>
@@ -325,9 +336,7 @@ export function DashboardPage() {
                       </p>
                     </div>
                     <Badge variant={statusVariant(bearing.status)}>{statusLabel(bearing.status)}</Badge>
-                    <span className="text-sm font-semibold text-slate-200">
-                      {Math.round(bearing.failureProbability)}%
-                    </span>
+                    <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.failureProbability)}%</span>
                     <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.rul)}h</span>
                   </Link>
                 ))}
@@ -335,6 +344,23 @@ export function DashboardPage() {
             </CardContent>
           </Card>
         </section>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">Nginx Health Check</p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {health?.ok ? "GET /api/health OK" : "Waiting for /api/health response"}
+              </p>
+              <p className="mt-1 text-xs text-slate-300">
+                {health
+                  ? `${health.service} · ${formatTime(health.checkedAt)}`
+                  : "This panel confirms the frontend can resolve /api/health through the current proxy path."}
+              </p>
+            </div>
+            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Proxy OK" : "Checking"}</Badge>
+          </div>
+        </div>
       </div>
     </AppShell>
   );
@@ -347,7 +373,7 @@ function MetricCard({
   subtext,
   tone,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   subtext: string;

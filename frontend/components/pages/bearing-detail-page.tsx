@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { ArrowLeft, Clock3, Gauge, RotateCw, ShieldAlert, Thermometer, Waves } from "lucide-react";
 
-import { AnalyticsShell } from "@/components/analytics-shell";
+import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,7 +53,6 @@ function statusVariant(status?: string) {
   if (status === "warning") return "warning";
   return "success";
 }
-
 export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const [data, setData] = useState<BearingDetailData | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -88,17 +87,15 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const failureProbability = latest?.failureProbability ?? bearing?.failureProbability ?? 0;
 
   return (
-    <AnalyticsShell active="bearing" searchPlaceholder="Search bearings..." title="Bearing Detail">
-      <div className="mx-auto w-full max-w-6xl space-y-8 p-8">
-        <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
+    <AppShell active="bearing" status={data?.source ?? "demo"} title={`Bearing Detail ${bearing?.id ?? bearingId}`}>
+      <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-300 hover:text-blue-200" href="/">
+            <Link className="inline-flex items-center gap-2 text-sm font-semibold text-blue-300 hover:text-blue-200" href="/">
               <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+              Back to dashboard
             </Link>
-            <h2 className="font-headline text-[1.75rem] font-bold leading-tight text-white">
-              {bearing?.name ?? "Loading bearing"}
-            </h2>
+            <h1 className="mt-4 font-headline text-3xl font-bold text-white">{bearing?.name ?? "Loading bearing detail"}</h1>
             <p className="mt-2 text-sm text-slate-400">
               {bearing?.assetName ?? "Waiting for backend data"} · {bearing?.location ?? "Unknown location"}
             </p>
@@ -106,7 +103,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Badge variant={statusVariant(bearing?.status)}>{bearing?.status ?? "loading"}</Badge>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-[1fr_1fr_1.2fr]">
+        <section className="grid gap-6 lg:grid-cols-[0.7fr_0.7fr_1fr]">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Health Score</CardTitle>
@@ -147,7 +144,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </section>
 
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-4">
@@ -232,7 +229,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           </Card>
         </section>
       </div>
-    </AnalyticsShell>
+    </AppShell>
   );
 }
 

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
-  active: "dashboard" | "bearing";
+  active: "dashboard" | "analytics" | "assets" | "bearings" | "policy" | "settings" | "bearing";
   children: ReactNode;
   title?: string;
   status?: "backend" | "demo";
@@ -17,10 +17,11 @@ type AppShellProps = {
 
 const navItems = [
   { href: "/", label: "Dashboard", key: "dashboard", icon: LayoutDashboard },
-  { href: "/bearings/BRG-101", label: "Bearing Detail", key: "bearing", icon: Gauge },
-  { href: "#", label: "Analytics", key: "analytics", icon: Activity },
-  { href: "#", label: "Maintenance", key: "maintenance", icon: Wrench },
-  { href: "#", label: "Settings", key: "settings", icon: Settings },
+  { href: "/analytics", label: "Analytics", key: "analytics", icon: Activity },
+  { href: "/assets", label: "Assets", key: "assets", icon: Gauge },
+  { href: "/bearings", label: "Bearings", key: "bearings", icon: Wrench },
+  { href: "/policy", label: "Policy Bands", key: "policy", icon: Wrench },
+  { href: "/settings", label: "Settings", key: "settings", icon: Settings },
 ];
 
 export function AppShell({ active, children, title = "Predictive Insights", status = "demo" }: AppShellProps) {
@@ -42,7 +43,7 @@ export function AppShell({ active, children, title = "Predictive Insights", stat
             <nav className="space-y-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.key === active;
+                const isActive = item.key === active || (active === "bearing" && item.key === "bearings");
 
                 return (
                   <Link
@@ -68,7 +69,7 @@ export function AppShell({ active, children, title = "Predictive Insights", stat
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Data Source</p>
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-white">
-                  {status === "backend" ? "Web Backend" : "Demo Fallback"}
+                  {status === "backend" ? "Web Backend" : "Local Snapshot"}
                 </span>
                 <span
                   className={cn(
@@ -89,7 +90,7 @@ export function AppShell({ active, children, title = "Predictive Insights", stat
             </div>
             <div className="flex items-center gap-3">
               <Badge variant={status === "backend" ? "success" : "warning"}>
-                {status === "backend" ? "Live API" : "Demo Data"}
+                {status === "backend" ? "Live API" : "Local Data"}
               </Badge>
               <Button aria-label="Notifications" size="icon" variant="ghost">
                 <Bell className="h-4 w-4" />
@@ -110,14 +111,13 @@ export function AppShell({ active, children, title = "Predictive Insights", stat
           <div className="flex-1 space-y-6 overflow-y-auto p-6">
             <div className="rounded-2xl rounded-tl-sm border border-slate-700 bg-slate-800 p-4">
               <p className="text-sm leading-relaxed text-slate-300">
-                Theo dõi bearing theo thời gian thực. Các cảnh báo ưu tiên rung động RMS, nhiệt độ, xác suất lỗi và
-                RUL.
+                Track bearing health in real time with vibration, temperature, failure probability, and remaining useful life.
               </p>
             </div>
             <div className="rounded-2xl rounded-tl-sm border border-blue-400/40 bg-blue-500/10 p-4">
               <p className="text-sm leading-relaxed text-blue-100">
-                Gauge D3 đang phản ánh health score mới nhất; time-series Recharts dùng telemetry trực tiếp từ Web
-                Backend khi `NEXT_PUBLIC_API_BASE_URL` được cấu hình.
+                The D3 gauge reflects the latest health score, and the Recharts time-series updates from the backend whenever
+                `NEXT_PUBLIC_API_BASE_URL` is configured.
               </p>
             </div>
           </div>
