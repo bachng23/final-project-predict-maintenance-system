@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef } from "react";
 type D3GaugeProps = {
   value: number;
   max?: number;
-  label: string;
+  label?: string;
   unit?: string;
   tone?: "emerald" | "amber" | "rose" | "blue";
 };
@@ -18,7 +18,7 @@ const toneColors = {
   blue: { fill: "#38bdf8", track: "#0c4a6e", text: "#bae6fd" },
 };
 
-export function D3Gauge({ value, max = 100, label, unit = "%", tone = "emerald" }: D3GaugeProps) {
+export function D3Gauge({ value, max = 100, label = "Health Score", unit = "%", tone = "blue" }: D3GaugeProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const normalizedValue = Math.max(0, Math.min(value, max));
   const colors = toneColors[tone];

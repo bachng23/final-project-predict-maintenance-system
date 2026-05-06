@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
-  active: "dashboard" | "analytics" | "assets" | "policy" | "settings" | "bearing";
+  active: "dashboard" | "analytics" | "assets" | "bearings" | "policy" | "settings" | "bearing";
   children: ReactNode;
   title?: string;
   status?: "backend" | "demo";
@@ -19,6 +19,7 @@ const navItems = [
   { href: "/", label: "Dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", key: "analytics", icon: Activity },
   { href: "/assets", label: "Assets", key: "assets", icon: Gauge },
+  { href: "/bearings", label: "Bearings", key: "bearings", icon: Wrench },
   { href: "/policy", label: "Policy Bands", key: "policy", icon: Wrench },
   { href: "/settings", label: "Settings", key: "settings", icon: Settings },
 ];
@@ -42,7 +43,7 @@ export function AppShell({ active, children, title = "Predictive Insights", stat
             <nav className="space-y-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.key === active || (active === "bearing" && item.key === "assets");
+                const isActive = item.key === active || (active === "bearing" && item.key === "bearings");
 
                 return (
                   <Link

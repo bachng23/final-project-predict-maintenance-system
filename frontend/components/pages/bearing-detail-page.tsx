@@ -48,6 +48,11 @@ function failureTone(value: number): "emerald" | "amber" | "rose" {
   return "emerald";
 }
 
+function statusVariant(status?: string) {
+  if (status === "critical") return "danger";
+  if (status === "warning") return "warning";
+  return "success";
+}
 export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const [data, setData] = useState<BearingDetailData | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -95,20 +100,14 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
               {bearing?.assetName ?? "Waiting for backend data"} · {bearing?.location ?? "Unknown location"}
             </p>
           </div>
-          <Badge
-            variant={
-              bearing?.status === "critical" ? "danger" : bearing?.status === "warning" ? "warning" : "success"
-            }
-          >
-            {bearing?.status ?? "loading"}
-          </Badge>
+          <Badge variant={statusVariant(bearing?.status)}>{bearing?.status ?? "loading"}</Badge>
         </div>
 
         <section className="grid gap-6 lg:grid-cols-[0.7fr_0.7fr_1fr]">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Health Score</CardTitle>
-              <CardDescription>D3.js gauge</CardDescription>
+              <CardDescription>D3 gauge driven by the latest bearing state</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Bearing Health" tone={healthTone(healthScore)} value={healthScore} />
@@ -118,7 +117,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Failure Risk</CardTitle>
-              <CardDescription>Predicted failure probability</CardDescription>
+              <CardDescription>Forecast probability from the backend history</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Failure Probability" tone={failureTone(failureProbability)} value={failureProbability} />
@@ -128,14 +127,18 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card className="bg-[linear-gradient(135deg,#111827,#0f172a_52%,#1f2937)]">
             <CardHeader>
               <CardTitle>Operating Snapshot</CardTitle>
-              <CardDescription>Latest values from the telemetry stream</CardDescription>
+              <CardDescription>Latest metrics for the selected bearing</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2">
                 <SnapshotItem icon={<Waves className="h-4 w-4" />} label="Vibration RMS" value={`${(latest?.vibration ?? bearing?.vibration ?? 0).toFixed(2)} mm/s`} />
                 <SnapshotItem icon={<Thermometer className="h-4 w-4" />} label="Temperature" value={`${(latest?.temperature ?? bearing?.temperature ?? 0).toFixed(1)} °C`} />
                 <SnapshotItem icon={<Gauge className="h-4 w-4" />} label="Pressure" value={`${(latest?.pressure ?? bearing?.pressure ?? 0).toFixed(2)} bar`} />
-                <SnapshotItem icon={<RotateCw className="h-4 w-4" />} label="RPM" value={`${Math.round(latest?.rpm ?? 0).toLocaleString("en-US")}`} />
+                <SnapshotItem
+                  icon={<RotateCw className="h-4 w-4" />}
+                  label="RPM"
+                  value={`${Math.round(latest?.rpm ?? bearing?.rpm ?? 0).toLocaleString("en-US")}`}
+                />
                 <SnapshotItem icon={<Clock3 className="h-4 w-4" />} label="RUL" value={`${Math.round(latest?.rul ?? bearing?.rul ?? 0)} hours`} />
                 <SnapshotItem icon={<ShieldAlert className="h-4 w-4" />} label="Updated" value={formatDateTime(bearing?.updatedAt ?? new Date().toISOString())} />
               </div>
@@ -146,10 +149,10 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle>Telemetry Time-series</CardTitle>
-              <CardDescription>Recent 24-hour trend across vibration, temperature, failure risk, and RUL</CardDescription>
+              <CardTitle>Telemetry Time-Series</CardTitle>
+              <CardDescription>Recharts view of prediction history and latest operating envelope</CardDescription>
             </div>
-            <Badge variant="default">24h Range</Badge>
+            <Badge variant="default">Prediction History</Badge>
           </CardHeader>
           <CardContent>
             <div className="h-[420px]">
@@ -185,8 +188,8 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
         <section className="grid gap-6 lg:grid-cols-[1fr_0.7fr]">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Telemetry Samples</CardTitle>
-              <CardDescription>Latest records from the live telemetry stream</CardDescription>
+              <CardTitle>Recent Samples</CardTitle>
+              <CardDescription>Most recent telemetry and prediction points from the backend</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-lg border border-slate-800">
@@ -197,21 +200,15 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
                   <span>Risk</span>
                   <span>RUL</span>
                 </div>
-                {[...(data?.telemetry ?? [])]
-                  .slice(-8)
-                  .reverse()
-                  .map((point) => (
-                    <div
-                      className="grid grid-cols-[1fr_90px_90px_90px_90px] border-b border-slate-800 px-4 py-3 text-sm text-slate-300 last:border-0"
-                      key={point.timestamp}
-                    >
-                      <span className="text-slate-400">{formatDateTime(point.timestamp)}</span>
-                      <span>{point.vibration.toFixed(2)}</span>
-                      <span>{point.temperature.toFixed(1)}°C</span>
-                      <span>{point.failureProbability.toFixed(1)}%</span>
-                      <span>{Math.round(point.rul)}h</span>
-                    </div>
-                  ))}
+                {[...(data?.telemetry ?? [])].slice(-8).reverse().map((point) => (
+                  <div className="grid grid-cols-[1fr_90px_90px_90px_90px] border-b border-slate-800 px-4 py-3 text-sm text-slate-300 last:border-0" key={point.timestamp}>
+                    <span className="text-slate-400">{formatDateTime(point.timestamp)}</span>
+                    <span>{point.vibration.toFixed(2)}</span>
+                    <span>{point.temperature.toFixed(1)}°C</span>
+                    <span>{point.failureProbability.toFixed(1)}%</span>
+                    <span>{Math.round(point.rul)}h</span>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -219,14 +216,14 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader>
               <CardTitle>Maintenance Recommendation</CardTitle>
-              <CardDescription>Rule-based guidance derived from the current metrics</CardDescription>
+              <CardDescription>Rule-based guidance using the current bearing state</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Recommendation active={failureProbability >= 70} text="Prioritize this bearing for immediate inspection during the current operating shift." />
-                <Recommendation active={(latest?.temperature ?? bearing?.temperature ?? 0) >= 80} text="Temperature is elevated; inspect lubrication quality and shaft load." />
-                <Recommendation active={(latest?.vibration ?? bearing?.vibration ?? 0) >= 4.5} text="Vibration exceeds the target band; schedule spectrum analysis and rebalancing." />
-                <Recommendation active={(latest?.rul ?? bearing?.rul ?? 999) < 160} text="Remaining useful life is low; prepare the work order and replacement parts." />
+                <Recommendation active={failureProbability >= 70} text="Prioritize inspection during the current operating window." />
+                <Recommendation active={(latest?.temperature ?? bearing?.temperature ?? 0) >= 80} text="Temperature is elevated. Review lubrication and shaft load immediately." />
+                <Recommendation active={(latest?.vibration ?? bearing?.vibration ?? 0) >= 4.5} text="Vibration exceeds the preferred band. Run balancing and spectral checks." />
+                <Recommendation active={(latest?.rul ?? bearing?.rul ?? 999) < 160} text="Remaining useful life is low. Prepare a work order and replacement parts." />
               </div>
             </CardContent>
           </Card>
@@ -253,9 +250,7 @@ function Recommendation({ active, text }: { active: boolean; text: string }) {
     <div className={active ? "rounded-lg border border-rose-500/30 bg-rose-500/10 p-4" : "rounded-lg border border-slate-800 bg-slate-950/40 p-4"}>
       <div className="flex gap-3">
         <span className={active ? "mt-1 h-2.5 w-2.5 rounded-full bg-rose-300" : "mt-1 h-2.5 w-2.5 rounded-full bg-slate-600"} />
-        <p className={active ? "text-sm font-semibold leading-relaxed text-rose-100" : "text-sm leading-relaxed text-slate-400"}>
-          {text}
-        </p>
+        <p className={active ? "text-sm font-semibold leading-relaxed text-rose-100" : "text-sm leading-relaxed text-slate-400"}>{text}</p>
       </div>
     </div>
   );

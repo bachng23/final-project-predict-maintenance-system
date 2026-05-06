@@ -16,6 +16,7 @@ type AnalyticsShellProps = {
 
 const navItems = [
   { href: "/", label: "Dashboard", key: "dashboard", icon: "dashboard" },
+  { href: "/bearings/BRG-001", label: "Bearing Detail", key: "bearing", icon: "precision_manufacturing" },
   { href: "/analytics", label: "Analytics", key: "analytics", icon: "analytics" },
   { href: "/assets", label: "Assets", key: "assets", icon: "inventory_2" },
   { href: "/bearings", label: "Bearings", key: "bearings", icon: "settings_input_component" },
