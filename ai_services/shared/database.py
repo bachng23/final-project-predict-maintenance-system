@@ -7,9 +7,12 @@ from typing import AsyncGenerator, Optional
 import asyncpg
 
 from shared.config import settings
+import json
+
 from shared.schemas import (
     AgentTranscriptEntry,
     DecisionActionRecord,
+    FeatureRecord,
     NegotiationRecord,
     PredictionRecord,
     SnapshotPayload,
@@ -69,6 +72,33 @@ async def get_bearing_uuid(bearing_id: str) -> str:
         )
     if row is None:
         raise ValueError(f"Bearing '{bearing_id}' not found or inactive")
+    return str(row["id"])
+
+
+# Features
+
+async def upsert_features(record: FeatureRecord) -> str:
+    """Insert or update a feature row. Returns the feature UUID."""
+    bearing_uuid = await get_bearing_uuid(record.bearing_id)
+    async with acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO features (
+                bearing_id, file_idx, sample_ts,
+                lifetime_pct, features_json
+            ) VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (bearing_id, file_idx) DO UPDATE SET
+                sample_ts    = EXCLUDED.sample_ts,
+                lifetime_pct = EXCLUDED.lifetime_pct,
+                features_json = EXCLUDED.features_json
+            RETURNING id
+            """,
+            bearing_uuid,
+            record.file_idx,
+            record.sample_ts,
+            record.lifetime_pct,
+            json.dumps(record.features),
+        )
     return str(row["id"])
 
 

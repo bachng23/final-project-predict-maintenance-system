@@ -20,10 +20,26 @@ model Bearing {
   active           Boolean       @default(true)
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  features         Feature[]
   predictions      Prediction[]
   snapshots        Snapshot[]
 
   @@map("bearings")
+}
+
+model Feature {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bearingId    String   @map("bearing_id") @db.Uuid
+  fileIdx      Int      @map("file_idx")
+  sampleTs     DateTime @map("sample_ts") @db.Timestamptz(6)
+  lifetimePct  Float    @map("lifetime_pct")
+  featuresJson Json     @map("features_json")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  bearing      Bearing  @relation(fields: [bearingId], references: [id], onDelete: Restrict)
+
+  @@unique([bearingId, fileIdx])
+  @@index([bearingId, sampleTs(sort: Desc)])
+  @@map("features")
 }
 
 model Prediction {
