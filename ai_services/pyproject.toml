@@ -23,4 +23,18 @@ dependencies = [
     "prometheus-client>=0.21.0",
     "mlflow>=2.22.0",
     "httpx>=0.28.0",
+    "pytest>=9.0.3",
+    "pytest-env>=1.1.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+env = [
+    "POSTGRES_USER=test",
+    "POSTGRES_PASSWORD=test",
+    "POSTGRES_DB=test",
+    "MINIO_USER=test",
+    "MINIO_PASSWORD=test",
+    "REDIS_PASSWORD=test",
+    "MODEL_VERSION=test-v0",
 ]
