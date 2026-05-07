@@ -16,8 +16,11 @@ import { ArrowLeft, Clock3, Gauge, RotateCw, ShieldAlert, Thermometer, Waves } f
 
 import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
+import { DemoControls } from "@/components/charts/demo-controls";
+import { RULChart } from "@/components/charts/rul-chart";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRULStream } from "@/hooks/useRULStream";
 import { type BearingDetailData, fetchBearingDetail } from "@/lib/backend-api";
 
 function formatTime(timestamp: string) {
@@ -56,6 +59,7 @@ function statusVariant(status?: string) {
 export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const [data, setData] = useState<BearingDetailData | null>(null);
   const [mounted, setMounted] = useState(false);
+  const { connected, points: livePoints } = useRULStream(bearingId);
 
   useEffect(() => {
     setMounted(true);
@@ -182,6 +186,20 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
                 <div className="flex h-full items-center justify-center text-sm text-slate-500">Preparing chart...</div>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Live RUL Stream */}
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Live RUL Stream</CardTitle>
+              <CardDescription>Real-time remaining useful life from the prediction pipeline · orange ⚠ markers = anomaly trigger</CardDescription>
+            </div>
+            <DemoControls bearingId={bearingId} />
+          </CardHeader>
+          <CardContent>
+            <RULChart connected={connected} points={livePoints} />
           </CardContent>
         </Card>
 
