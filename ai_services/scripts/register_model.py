@@ -149,8 +149,8 @@ def main() -> None:
     client = MlflowClient()
 
     if args.cmd == "register":
-        _register_ae(client, force=args.promote)
-        _register_rul(client, force=args.promote)
+        _register_ae(client, promote=args.promote)
+        _register_rul(client, promote=args.promote)
         if not args.promote:
             log.info("New versions created. Review in MLflow UI, then run:")
             log.info("  uv run python scripts/register_model.py promote --model xjtu-rul --version <N>")

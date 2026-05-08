@@ -161,11 +161,28 @@ def _load_rul(artifact_dir: Path) -> None:
     )
 
 
+def _load_from_local() -> bool:
+    """Load directly from inference_package/ if it exists. Returns True on success."""
+    local = Path(__file__).parent.parent / "inference_package"
+    if not local.exists():
+        return False
+    try:
+        _load_ae(local)
+        _load_rul(local)
+        log.info("All models loaded from local inference_package/")
+        return True
+    except Exception as exc:
+        log.warning("Local load failed: %s", exc)
+        return False
+
+
 def load_all_models(retries: int = 10, delay: float = 6.0) -> None:
     """
-    Called once at service startup (FastAPI lifespan).
-    Retries if MLflow is not yet ready.
+    Load models — tries local inference_package/ first, falls back to MLflow.
     """
+    if _load_from_local():
+        return
+
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
 
     for attempt in range(1, retries + 1):
@@ -174,7 +191,7 @@ def load_all_models(retries: int = 10, delay: float = 6.0) -> None:
             rul_dir = _download("xjtu-rul")
             _load_ae(ae_dir)
             _load_rul(rul_dir)
-            log.info("All models loaded successfully")
+            log.info("All models loaded successfully from MLflow")
             return
         except Exception as exc:
             log.warning("Model load attempt %d/%d failed: %s", attempt, retries, exc)

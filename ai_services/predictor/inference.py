@@ -15,9 +15,11 @@ import predictor.model_loader as ml
 log = logging.getLogger(__name__)
 
 # Per-bearing sliding window: bearing_id → deque of HI history dicts
-# Each entry: {"hi": float, "ts_minutes": float, "rpm": int, "load_kn": float}
+# Each entry: {"hi_raw": float, "ts_minutes": float, "rpm": int, "load_kn": float}
 _hi_history: dict[str, deque] = {}
 SEQ_LEN = 30
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +242,10 @@ def predict(record: FeatureRecord, ctx: BearingContext) -> PredictionRecord:
     # Stage 2
     mc = run_mc_dropout(seq, n_passes=n_passes)
 
-    p_fail      = _platt_calibrate(mc["pfail_raw"])
+    hi_mean = ml.rul_scaler["hi_mean"]
+    hi_std  = ml.rul_scaler["hi_std"]
+    hi_z_raw = (hi_raw - hi_mean) / (hi_std + 1e-9)
+    p_fail   = float(1.0 / (1.0 + math.exp(-hi_z_raw)))
     health_score = round((1.0 - p_fail) * 100.0, 2)
     deg_rate    = _degradation_rate(record.bearing_id)
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Download, Filter, Search as SearchIcon } from "lucide-react";
 
-import { AnalyticsShell } from "@/components/analytics-shell";
+import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { type BearingSummary, type DashboardData, fetchDashboard } from "@/lib/backend-api";
@@ -62,7 +62,7 @@ export function BearingsPage() {
     : 0;
 
   return (
-    <AnalyticsShell active="bearings" searchPlaceholder="Search bearings..." title="Predictive Insights">
+    <AppShell title="Predictive Insights" searchPlaceholder="Search bearings...">
       <div className="mx-auto w-full max-w-7xl space-y-6 p-6 pb-24 md:p-8">
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl md:flex-row md:items-end md:justify-between">
           <div>
@@ -179,7 +179,7 @@ export function BearingsPage() {
           </div>
         </section>
       </div>
-    </AnalyticsShell>
+    </AppShell>
   );
 }
 

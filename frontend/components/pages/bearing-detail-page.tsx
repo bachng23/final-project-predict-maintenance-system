@@ -1,17 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Clock3, Gauge, RotateCw, ShieldAlert, Thermometer, Waves } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
@@ -22,13 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRULStream } from "@/hooks/useRULStream";
 import { type BearingDetailData, fetchBearingDetail } from "@/lib/backend-api";
-
-function formatTime(timestamp: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
-}
 
 function formatDateTime(timestamp: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -58,11 +41,25 @@ function statusVariant(status?: string) {
 }
 export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const [data, setData] = useState<BearingDetailData | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const { connected, points: livePoints } = useRULStream(bearingId);
+  const [streamBearingId, setStreamBearingId] = useState(bearingId);
+  const { connected, points: livePoints } = useRULStream(streamBearingId);
+
+  // Throttled gauge values — update at most every 2.5 s so the gauge doesn't flicker
+  const [gaugeHealth, setGaugeHealth] = useState<number | null>(null);
+  const [gaugeFailure, setGaugeFailure] = useState<number | null>(null);
+  const lastGaugeUpdate = useRef(0);
 
   useEffect(() => {
-    setMounted(true);
+    if (livePoints.length === 0) return;
+    const now = Date.now();
+    if (now - lastGaugeUpdate.current < 2500) return;
+    lastGaugeUpdate.current = now;
+    const last = livePoints[livePoints.length - 1];
+    setGaugeHealth(last.healthScore);
+    setGaugeFailure(last.pFail * 100);
+  }, [livePoints]);
+
+  useEffect(() => {
     const controller = new AbortController();
     fetchBearingDetail(bearingId, controller.signal).then(setData).catch(() => undefined);
 
@@ -76,19 +73,11 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
     };
   }, [bearingId]);
 
-  const chartData = useMemo(
-    () =>
-      (data?.telemetry ?? []).map((point) => ({
-        ...point,
-        time: formatTime(point.timestamp),
-      })),
-    [data],
-  );
-
   const latest = data?.telemetry[data.telemetry.length - 1];
   const bearing = data?.bearing;
-  const healthScore = latest?.healthScore ?? bearing?.healthScore ?? 0;
-  const failureProbability = latest?.failureProbability ?? bearing?.failureProbability ?? 0;
+  // Prefer live stream values; fall back to static API data
+  const healthScore = gaugeHealth ?? latest?.healthScore ?? bearing?.healthScore ?? 0;
+  const failureProbability = gaugeFailure ?? latest?.failureProbability ?? bearing?.failureProbability ?? 0;
 
   return (
     <AppShell active="bearing" status={data?.source ?? "demo"} title={`Bearing Detail ${bearing?.id ?? bearingId}`}>
@@ -111,7 +100,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Health Score</CardTitle>
-              <CardDescription>D3 gauge driven by the latest bearing state</CardDescription>
+              <CardDescription>Updates from the live prediction stream</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Bearing Health" tone={healthTone(healthScore)} value={healthScore} />
@@ -121,7 +110,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Failure Risk</CardTitle>
-              <CardDescription>Forecast probability from the backend history</CardDescription>
+              <CardDescription>Updates from the live prediction stream</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Failure Probability" tone={failureTone(failureProbability)} value={failureProbability} />
@@ -150,45 +139,6 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           </Card>
         </section>
 
-        <Card>
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle>Telemetry Time-Series</CardTitle>
-              <CardDescription>Recharts view of prediction history and latest operating envelope</CardDescription>
-            </div>
-            <Badge variant="default">Prediction History</Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[420px]">
-              {mounted ? (
-                <ResponsiveContainer height="100%" width="100%">
-                  <ComposedChart data={chartData} margin={{ bottom: 8, left: -10, right: 12, top: 12 }}>
-                    <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="time" minTickGap={24} stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} yAxisId="left" />
-                    <YAxis orientation="right" stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} yAxisId="right" />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#0f172a",
-                        border: "1px solid #334155",
-                        borderRadius: 8,
-                        color: "#e2e8f0",
-                      }}
-                    />
-                    <Legend />
-                    <Line dataKey="vibration" dot={false} name="Vibration mm/s" stroke="#38bdf8" strokeWidth={2.5} yAxisId="left" />
-                    <Line dataKey="temperature" dot={false} name="Temperature °C" stroke="#f59e0b" strokeWidth={2.5} yAxisId="left" />
-                    <Line dataKey="failureProbability" dot={false} name="Failure %" stroke="#fb7185" strokeWidth={2.5} yAxisId="right" />
-                    <Line dataKey="rul" dot={false} name="RUL hours" stroke="#34d399" strokeWidth={2.5} yAxisId="right" />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-slate-500">Preparing chart...</div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Live RUL Stream */}
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-4">
@@ -196,56 +146,30 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
               <CardTitle>Live RUL Stream</CardTitle>
               <CardDescription>Real-time remaining useful life from the prediction pipeline · orange ⚠ markers = anomaly trigger</CardDescription>
             </div>
-            <DemoControls bearingId={bearingId} />
+            <DemoControls
+              onStart={(id) => setStreamBearingId(id)}
+              onStop={() => setStreamBearingId(bearingId)}
+            />
           </CardHeader>
           <CardContent>
             <RULChart connected={connected} points={livePoints} />
           </CardContent>
         </Card>
 
-        <section className="grid gap-6 lg:grid-cols-[1fr_0.7fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Samples</CardTitle>
-              <CardDescription>Most recent telemetry and prediction points from the backend</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-hidden rounded-lg border border-slate-800">
-                <div className="grid grid-cols-[1fr_90px_90px_90px_90px] border-b border-slate-800 bg-slate-950/70 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  <span>Time</span>
-                  <span>Vibration</span>
-                  <span>Temp</span>
-                  <span>Risk</span>
-                  <span>RUL</span>
-                </div>
-                {[...(data?.telemetry ?? [])].slice(-8).reverse().map((point) => (
-                  <div className="grid grid-cols-[1fr_90px_90px_90px_90px] border-b border-slate-800 px-4 py-3 text-sm text-slate-300 last:border-0" key={point.timestamp}>
-                    <span className="text-slate-400">{formatDateTime(point.timestamp)}</span>
-                    <span>{point.vibration.toFixed(2)}</span>
-                    <span>{point.temperature.toFixed(1)}°C</span>
-                    <span>{point.failureProbability.toFixed(1)}%</span>
-                    <span>{Math.round(point.rul)}h</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Maintenance Recommendation</CardTitle>
-              <CardDescription>Rule-based guidance using the current bearing state</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <Recommendation active={failureProbability >= 70} text="Prioritize inspection during the current operating window." />
-                <Recommendation active={(latest?.temperature ?? bearing?.temperature ?? 0) >= 80} text="Temperature is elevated. Review lubrication and shaft load immediately." />
-                <Recommendation active={(latest?.vibration ?? bearing?.vibration ?? 0) >= 4.5} text="Vibration exceeds the preferred band. Run balancing and spectral checks." />
-                <Recommendation active={(latest?.rul ?? bearing?.rul ?? 999) < 160} text="Remaining useful life is low. Prepare a work order and replacement parts." />
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Maintenance Recommendation</CardTitle>
+            <CardDescription>Rule-based guidance using the current bearing state</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Recommendation active={failureProbability >= 70} text="Prioritize inspection during the current operating window." />
+              <Recommendation active={(latest?.temperature ?? bearing?.temperature ?? 0) >= 80} text="Temperature is elevated. Review lubrication and shaft load immediately." />
+              <Recommendation active={(latest?.vibration ?? bearing?.vibration ?? 0) >= 4.5} text="Vibration exceeds the preferred band. Run balancing and spectral checks." />
+              <Recommendation active={(latest?.rul ?? bearing?.rul ?? 999) < 160} text="Remaining useful life is low. Prepare a work order and replacement parts." />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AppShell>
   );

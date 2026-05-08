@@ -79,8 +79,8 @@ async def handle_vibration_message(raw: bytes) -> None:
 
     logger.info(
         "[%s] file_idx=%d processed — lifetime_pct=%.3f, "
-        "rms=%.4f, kurtosis=%.4f, feature_ref=%s",
+        "p2p=%.4f, kurtosis=%.4f, feature_ref=%s",
         bearing_id, file_idx, lifetime_pct,
-        features.get("rms", 0.0), features.get("kurtosis", 0.0),
+        features.get("h_p2p", 0.0), features.get("h_kurtosis", 0.0),
         feature_vector_ref,
     )

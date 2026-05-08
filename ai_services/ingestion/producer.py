@@ -107,7 +107,7 @@ class XJTUProducer:
 
         files = self._csv_files()
         total = len(files)
-        interval = _REAL_INTERVAL / self.speed
+        interval = max(_REAL_INTERVAL / self.speed, 0.05)  # floor at 50 ms
 
         logger.info(
             "[%s] Starting replay: %d files, condition %d (%d RPM), "

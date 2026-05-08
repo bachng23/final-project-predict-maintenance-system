@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { AnalyticsShell } from "@/components/analytics-shell";
+import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,7 @@ export function SettingsPage() {
   const [reasoningMode, setReasoningMode] = useState("Balanced");
 
   return (
-    <AnalyticsShell active="settings" searchPlaceholder="Search settings..." title="Predictive Insights">
+    <AppShell title="Predictive Insights" searchPlaceholder="Search settings...">
       <div className="mx-auto w-full max-w-5xl space-y-6 p-6 pb-24 md:p-8">
         <section className="rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">Configuration Layer</p>
@@ -136,7 +136,7 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
-    </AnalyticsShell>
+    </AppShell>
   );
 }
 

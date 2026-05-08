@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Activity, AlertTriangle, Clock3, TrendingUp, Waves } from "lucide-react";
 
-import { AnalyticsShell } from "@/components/analytics-shell";
+import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type DashboardData, fetchDashboard } from "@/lib/backend-api";
@@ -66,7 +66,7 @@ export function AnalyticsPage() {
   );
 
   return (
-    <AnalyticsShell active="analytics" searchPlaceholder="Search analytics..." title="Predictive Insights">
+    <AppShell title="Predictive Insights" searchPlaceholder="Search analytics...">
       <div className="mx-auto w-full max-w-7xl space-y-6 p-6 pb-24 md:p-8">
         <section className="rounded-2xl border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -264,7 +264,7 @@ export function AnalyticsPage() {
           </Card>
         </section>
       </div>
-    </AnalyticsShell>
+    </AppShell>
   );
 }
 

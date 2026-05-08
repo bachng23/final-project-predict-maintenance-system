@@ -64,14 +64,34 @@ async def transaction() -> AsyncGenerator[asyncpg.Connection, None]:
 # Bearings
 
 async def get_bearing_uuid(bearing_id: str) -> str:
-    """Resolve business ID (e.g. 'XJT-B1') -> internal UUID."""
+    """Resolve business ID -> internal UUID, auto-creating the row if missing."""
     async with acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM bearings WHERE bearing_id = $1 AND active = true",
+            "SELECT id FROM bearings WHERE bearing_id = $1",
             bearing_id,
         )
-    if row is None:
-        raise ValueError(f"Bearing '{bearing_id}' not found or inactive")
+        if row is None:
+            # Derive condition label from bearing_id convention: Bearing<cond>_<num>
+            # e.g. Bearing1_3 → condition 1 → 35Hz12kN
+            _COND_LABEL = {"1": "35Hz12kN", "2": "37.5Hz11kN", "3": "40Hz10kN"}
+            _COND_RPM   = {"1": 2100, "2": 2250, "3": 2400}
+            parts = bearing_id.replace("Bearing", "").split("_")
+            cond  = parts[0] if parts else "1"
+            row = await conn.fetchrow(
+                """
+                INSERT INTO bearings
+                  (bearing_id, display_name, dataset_source, condition_label, rpm, active)
+                VALUES ($1, $2, 'XJTU-SY', $3, $4, true)
+                ON CONFLICT (bearing_id) DO UPDATE SET active = true
+                RETURNING id
+                """,
+                bearing_id,
+                bearing_id,
+                _COND_LABEL.get(cond, "unknown"),
+                _COND_RPM.get(cond, 2100),
+            )
+        if row is None:
+            raise ValueError(f"Could not create bearing '{bearing_id}'")
     return str(row["id"])
 
 

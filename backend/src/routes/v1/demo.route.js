@@ -1,41 +1,95 @@
 const express = require('express');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
 const router = express.Router();
 
-let demoProcess = null;
+// __dirname = backend/src/routes/v1  →  go up 4 levels to repo root
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
+const PIPELINE_SCRIPT = path.join(REPO_ROOT, 'ai_services', 'run_pipeline.sh');
+const DATA_ROOT = process.env.DATA_ROOT || path.join(REPO_ROOT, 'data', 'xjtu-sy');
 
-/**
- * POST /api/v1/demo/start
- * Triggers the ai_services Kafka producer to stream a bearing dataset.
- * Body: { bearing_id: "Bearing1_3", speed?: 1.0 }
- */
+// condition folder names inside DATA_ROOT
+const CONDITION_FOLDERS = ['35Hz12kN', '37.5Hz11kN', '40Hz10kN'];
+
+let demoProcess = null;
+let currentBearing = null;
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/demo/bearings
+// Returns all available bearing IDs from the dataset folders.
+// ---------------------------------------------------------------------------
+router.get('/bearings', (req, res) => {
+  const bearings = [];
+  for (const folder of CONDITION_FOLDERS) {
+    const dir = path.join(DATA_ROOT, folder);
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory() && /^Bearing\d+_\d+$/.test(name)) {
+        const csvCount = fs.readdirSync(full).filter(f => f.endsWith('.csv')).length;
+        bearings.push({ id: name, condition: folder, files: csvCount });
+      }
+    }
+  }
+  res.json({ bearings });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/demo/status
+// ---------------------------------------------------------------------------
+router.get('/status', (req, res) => {
+  res.json({
+    running: !!(demoProcess && !demoProcess.killed),
+    bearing_id: currentBearing,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/demo/start
+// Body: { bearing_id: "Bearing1_3", speed: 30 }
+// ---------------------------------------------------------------------------
 router.post('/start', (req, res) => {
   if (demoProcess && !demoProcess.killed) {
-    return res.status(409).json({ success: false, message: 'Demo already running' });
+    return res.status(409).json({ success: false, message: 'Demo already running', bearing_id: currentBearing });
   }
 
-  const bearingId = req.body.bearing_id || 'Bearing1_3';
-  const speed = parseFloat(req.body.speed) || 1.0;
+  const bearingId = (req.body.bearing_id || 'Bearing1_3').trim();
+  const speed = Math.min(Math.max(parseFloat(req.body.speed) || 100, 1), 2000);
 
-  // Calls the ingestion producer via docker exec (adjust service name as needed)
-  const cmd = `docker exec ingestion python -m producer --bearing ${bearingId} --speed ${speed}`;
-  demoProcess = exec(cmd, (err) => {
-    if (err && !err.killed) {
-      console.warn('[demo] producer exited:', err.message);
-    }
-    demoProcess = null;
+  if (!/^Bearing\d+_\d+$/.test(bearingId)) {
+    return res.status(400).json({ success: false, message: 'Invalid bearing_id format' });
+  }
+
+  console.log(`[demo] Starting pipeline: ${bearingId} speed=${speed}x`);
+
+  demoProcess = spawn('bash', [PIPELINE_SCRIPT, bearingId, String(speed)], {
+    detached: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  demoProcess.stdout.on('data', d => process.stdout.write(`[demo] ${d}`));
+  demoProcess.stderr.on('data', d => process.stderr.write(`[demo] ${d}`));
+  demoProcess.on('close', (code) => {
+    console.log(`[demo] Pipeline exited (code ${code})`);
+    demoProcess = null;
+    currentBearing = null;
+  });
+
+  currentBearing = bearingId;
   res.json({ success: true, bearing_id: bearingId, speed });
 });
 
-/**
- * POST /api/v1/demo/stop
- */
+// ---------------------------------------------------------------------------
+// POST /api/v1/demo/stop
+// ---------------------------------------------------------------------------
 router.post('/stop', (req, res) => {
   if (demoProcess && !demoProcess.killed) {
     demoProcess.kill('SIGTERM');
   }
+  demoProcess = null;
+  currentBearing = null;
   res.json({ success: true });
 });
 

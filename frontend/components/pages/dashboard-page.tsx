@@ -2,36 +2,18 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, Thermometer, Waves } from "lucide-react";
+
 
 import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, type HealthCheck, fetchDashboard, fetchHealth } from "@/lib/backend-api";
+import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
 
 function compactNumber(value: number, suffix = "") {
   return `${Math.round(value).toLocaleString("en-US")}${suffix}`;
-}
-
-function formatTime(timestamp: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
 }
 
 function statusVariant(status: BearingStatus) {
@@ -47,18 +29,13 @@ function statusLabel(status: BearingStatus) {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [health, setHealth] = useState<HealthCheck | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const controller = new AbortController();
     fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-    fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
 
     const timer = window.setInterval(() => {
       fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-      fetchHealth(controller.signal).then(setHealth).catch(() => undefined);
     }, 30000);
 
     return () => {
@@ -67,23 +44,15 @@ export function DashboardPage() {
     };
   }, []);
 
-  const chartData = useMemo(
-    () =>
-      (data?.telemetry ?? []).map((point) => ({
-        ...point,
-        time: formatTime(point.timestamp),
-      })),
-    [data],
-  );
-
   const mostCritical = useMemo(
     () => [...(data?.bearings ?? [])].sort((left, right) => right.failureProbability - left.failureProbability)[0],
     [data],
   );
 
   return (
-    <AppShell active="dashboard" status={data?.source ?? "demo"} title="Dashboard Tổng Quan">
+    <AppShell title="Dashboard Overview">
       <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
+        {/* Hero banner */}
         <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
           <div className="rounded-lg border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -91,7 +60,8 @@ export function DashboardPage() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">Real-time Overview</p>
                 <h1 className="mt-2 font-headline text-3xl font-bold text-white">Machine Health Overview</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                  Tong hop bearing health, RUL, xac suat loi va canh bao tu Web Backend.
+                  Live bearing health, RUL estimates, failure probability, and alerts from the predictive maintenance
+                  pipeline.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
@@ -114,7 +84,7 @@ export function DashboardPage() {
           <Card className="bg-slate-900">
             <CardHeader className="pb-2">
               <CardTitle>Fleet Health Gauge</CardTitle>
-              <CardDescription>D3.js gauge tu health score trung binh</CardDescription>
+              <CardDescription>Average health score across all monitored bearings</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Average Health" tone="emerald" value={data?.avgHealthScore ?? 0} />
@@ -122,6 +92,7 @@ export function DashboardPage() {
           </Card>
         </section>
 
+        {/* KPI cards */}
         <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={<Gauge className="h-5 w-5" />}
@@ -134,172 +105,32 @@ export function DashboardPage() {
             icon={<Clock3 className="h-5 w-5" />}
             label="Average RUL"
             value={compactNumber(data?.avgRul ?? 0, "h")}
-            subtext="Fleet-wide remaining life"
+            subtext="Fleet-wide remaining useful life"
             tone="blue"
           />
           <MetricCard
             icon={<Thermometer className="h-5 w-5" />}
             label="Hottest Bearing"
-            value={compactNumber(Math.max(...(data?.bearings.map((bearing) => bearing.temperature) ?? [0])), "°C")}
+            value={compactNumber(Math.max(...(data?.bearings.map((b) => b.temperature) ?? [0])), "°C")}
             subtext={mostCritical?.assetName ?? "Waiting for data"}
             tone="amber"
           />
           <MetricCard
             icon={<Waves className="h-5 w-5" />}
             label="Peak Vibration"
-            value={`${Math.max(...(data?.bearings.map((bearing) => bearing.vibration) ?? [0])).toFixed(1)} mm/s`}
+            value={`${Math.max(...(data?.bearings.map((b) => b.vibration) ?? [0])).toFixed(1)} mm/s`}
             subtext="RMS velocity"
             tone="emerald"
           />
         </section>
 
-        <Card>
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle>Nginx Health Check</CardTitle>
-              <CardDescription>
-                {health
-                  ? `${health.service} · ${formatTime(health.checkedAt)}`
-                  : "Waiting for /api/health response"}
-              </CardDescription>
-            </div>
-            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Route OK" : "Checking"}</Badge>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm font-semibold text-slate-200">
-              {health?.ok ? "GET /api/health OK" : "GET /api/health is pending"}
-            </p>
-          </CardContent>
-        </Card>
-
+        {/* Watchlist + priority bearing */}
         <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
-                <CardTitle>Time-series Health Engine</CardTitle>
-                <CardDescription>Recharts line chart cho vibration, temperature va failure probability</CardDescription>
-              </div>
-              <Badge variant="success">Live Chart</Badge>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[340px]">
-                {mounted ? (
-                  <ResponsiveContainer height="100%" width="100%">
-                    <LineChart data={chartData} margin={{ bottom: 6, left: -12, right: 12, top: 10 }}>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                      <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#0f172a",
-                          border: "1px solid #334155",
-                          borderRadius: 8,
-                          color: "#e2e8f0",
-                        }}
-                      />
-                      <Legend />
-                      <Line dataKey="failureProbability" dot={false} name="Failure %" stroke="#fb7185" strokeWidth={2.5} />
-                      <Line dataKey="temperature" dot={false} name="Temp °C" stroke="#f59e0b" strokeWidth={2.5} />
-                      <Line dataKey="vibration" dot={false} name="Vibration" stroke="#38bdf8" strokeWidth={2.5} />
-                      <Line dataKey="healthScore" dot={false} name="Health" stroke="#34d399" strokeWidth={2.5} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500">Preparing chart...</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Priority Bearing</CardTitle>
-              <CardDescription>Bearing co rui ro cao nhat hien tai</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {mostCritical ? (
-                <div className="space-y-5">
-                  <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{mostCritical.id}</p>
-                        <h3 className="mt-2 font-headline text-xl font-bold text-white">{mostCritical.name}</h3>
-                        <p className="mt-1 text-sm text-slate-300">{mostCritical.assetName}</p>
-                      </div>
-                      <AlertTriangle className="h-6 w-6 text-rose-300" />
-                    </div>
-                    <div className="mt-5 grid grid-cols-3 gap-3">
-                      <MiniStat label="Failure" value={`${Math.round(mostCritical.failureProbability)}%`} />
-                      <MiniStat label="RUL" value={`${Math.round(mostCritical.rul)}h`} />
-                      <MiniStat label="Temp" value={`${Math.round(mostCritical.temperature)}°C`} />
-                    </div>
-                  </div>
-                  <Link
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-400"
-                    href={`/bearings/${encodeURIComponent(mostCritical.id)}`}
-                  >
-                    Xem chi tiet bearing
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex h-44 items-center justify-center text-sm text-slate-500">Loading bearing data...</div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Risk Distribution</CardTitle>
-              <CardDescription>Ty le trang thai cua toan bo bearing</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                {mounted ? (
-                  <ResponsiveContainer height="100%" width="100%">
-                    <AreaChart
-                      data={[
-                        { name: "Normal", value: data?.totals.normal ?? 0 },
-                        { name: "Warning", value: data?.totals.warning ?? 0 },
-                        { name: "Critical", value: data?.totals.critical ?? 0 },
-                        { name: "Offline", value: data?.totals.offline ?? 0 },
-                      ]}
-                      margin={{ left: -24, right: 12, top: 12 }}
-                    >
-                      <defs>
-                        <linearGradient id="riskFill" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.75} />
-                          <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.06} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                      <YAxis allowDecimals={false} stroke="#94a3b8" tick={{ fontSize: 11 }} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#0f172a",
-                          border: "1px solid #334155",
-                          borderRadius: 8,
-                          color: "#e2e8f0",
-                        }}
-                      />
-                      <Area dataKey="value" fill="url(#riskFill)" name="Bearings" stroke="#38bdf8" strokeWidth={2.5} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500">Preparing chart...</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex-row items-start justify-between gap-4">
-              <div>
                 <CardTitle>Bearing Watchlist</CardTitle>
-                <CardDescription>Click vao mot bearing de mo trang chi tiet</CardDescription>
+                <CardDescription>Click a bearing to open its detail page</CardDescription>
               </div>
               <Badge>{data?.totals.bearings ?? 0} Bearings</Badge>
             </CardHeader>
@@ -343,24 +174,44 @@ export function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        </section>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-200">Nginx Health Check</p>
-              <p className="mt-2 text-sm font-semibold text-white">
-                {health?.ok ? "GET /api/health OK" : "Waiting for /api/health response"}
-              </p>
-              <p className="mt-1 text-xs text-slate-300">
-                {health
-                  ? `${health.service} · ${formatTime(health.checkedAt)}`
-                  : "This panel confirms the frontend can resolve /api/health through the current proxy path."}
-              </p>
-            </div>
-            <Badge variant={health?.ok ? "success" : "warning"}>{health?.ok ? "Proxy OK" : "Checking"}</Badge>
-          </div>
-        </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Priority Bearing</CardTitle>
+              <CardDescription>Highest-risk bearing requiring immediate attention</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {mostCritical ? (
+                <div className="space-y-5">
+                  <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{mostCritical.id}</p>
+                        <h3 className="mt-2 font-headline text-xl font-bold text-white">{mostCritical.name}</h3>
+                        <p className="mt-1 text-sm text-slate-300">{mostCritical.assetName}</p>
+                      </div>
+                      <AlertTriangle className="h-6 w-6 text-rose-300" />
+                    </div>
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <MiniStat label="Failure" value={`${Math.round(mostCritical.failureProbability)}%`} />
+                      <MiniStat label="RUL" value={`${Math.round(mostCritical.rul)}h`} />
+                      <MiniStat label="Temp" value={`${Math.round(mostCritical.temperature)}°C`} />
+                    </div>
+                  </div>
+                  <Link
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-400"
+                    href={`/bearings/${encodeURIComponent(mostCritical.id)}`}
+                  >
+                    View Bearing Detail
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex h-44 items-center justify-center text-sm text-slate-500">Loading bearing data...</div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </AppShell>
   );

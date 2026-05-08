@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { AnalyticsShell } from "@/components/analytics-shell";
+import { AppShell } from "@/components/app-shell";
 
 const policyBands = [
   { band: "Critical", metric: "Failure Probability", range: "80% - 100%", level: "L4", action: "Immediate shutdown review" },
@@ -27,7 +27,7 @@ export function PolicyPage() {
   );
 
   return (
-    <AnalyticsShell active="policy" searchPlaceholder="Search policy bands..." title="Predictive Insights">
+    <AppShell title="Predictive Insights" searchPlaceholder="Search policy bands...">
       <div className="mx-auto w-full max-w-6xl space-y-8 p-8">
         <section className="mb-8 flex items-center justify-between rounded-2xl border border-slate-800 p-6 shadow-sm animate-gradient">
           <div>
@@ -106,7 +106,7 @@ export function PolicyPage() {
         />
 
       </div>
-    </AnalyticsShell>
+    </AppShell>
   );
 }
 
