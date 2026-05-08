@@ -93,7 +93,6 @@ async function main() {
     update: {},
     create: {
       snapshotId: snapshot.id,
-      decisionType: 'INSPECTION',
       recommendedAction: 'INSPECT',
       recommendedConfidence: 0.85,
       decisionStatus: 'PENDING',

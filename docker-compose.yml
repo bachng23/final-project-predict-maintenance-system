@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -24,9 +24,11 @@ services:
     image: redis:7.2.4-alpine
     container_name: redis_cache
     restart: always
-    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    env_file:
+      - .env
+    command: redis-server --appendonly yes --maxmemory-policy noeviction --requirepass ${REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -50,12 +52,26 @@ services:
       - "0"
       - --check=false
       - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092
+      - INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
       - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:9092
+      - INTERNAL://redpanda:9092,EXTERNAL://100.109.46.15:19092
     ports:
-      - "9092:9092"
-      - "9644:9644"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9644:9644"
+      - "19092:19092"
+    networks:
+      - predictive_maintenance_net
+
+  redpanda_console:
+    image: redpandadata/console:v2.7.2
+    container_name: redpanda_console
+    restart: always
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "127.0.0.1:8090:8080"
+    depends_on:
+      - redpanda
     networks:
       - predictive_maintenance_net
 
@@ -68,8 +84,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -90,23 +106,12 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     depends_on:
       - postgre_db
       - minio
     networks:
       - predictive_maintenance_net
-
-  #ollama:
-    #image: ollama/ollama:0.20.7
-    #container_name: ollama
-    #restart: always
-    #ports:
-      #- "11434:11434"
-    #volumes:
-      #- ollama_data:/root/.ollama
-    #networks:
-      #- predictive_maintenance_net
 
   clickhouse:
     image: clickhouse:25.8.21.7-jammy
@@ -117,8 +122,8 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
     ports:
-      - "8123:8123"
-      - "9009:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9009:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
@@ -145,7 +150,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD}@redis_cache:6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
@@ -185,7 +190,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis_cache:6379
+      REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD}@redis_cache:6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: ${LANGFUSE_S3_REGION:-auto}
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_USER}
@@ -201,7 +206,7 @@ services:
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     networks:
       - predictive_maintenance_net
 
@@ -214,7 +219,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -232,42 +237,40 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
       - predictive_maintenance_net
-  
+
   adminer:
     image: adminer:5.4.2
     container_name: adminer
     restart: always
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - postgre_db
     networks:
       - predictive_maintenance_net
-  
+
   redis_insight:
     image: redis/redisinsight:3.2.0
     container_name: redis_insight
     restart: always
     ports:
-      - "5540:5540"
+      - "127.0.0.1:5540:5540"
     depends_on:
       - redis_cache
     networks:
       - predictive_maintenance_net
-  
-    
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
-  ollama_data:
   clickhouse_data:
   clickhouse_logs:
   prometheus_data:
