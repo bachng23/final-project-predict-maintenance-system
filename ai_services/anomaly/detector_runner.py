@@ -55,9 +55,7 @@ async def run() -> None:
             log.warning("Malformed prediction message: %s", exc)
             return
 
-        rms = pred.health_score   # health_score ~ inverse of RMS anomaly; use p_fail path instead
-        # Extract RMS from features if available; fall back to 0 (c2 will be 0)
-        rms_val = 0.0
+        rms_val = pred.rms_h or 0.0
 
         trigger = detector.update(
             bearing_id  = pred.bearing_id,

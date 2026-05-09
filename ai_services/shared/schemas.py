@@ -53,6 +53,9 @@ class PredictionRecord(BaseModel):
     fault_type: Optional[FaultType] = Field(None, description="Type of fault detected, if any")
     fault_confidence: Optional[float] = Field(None, description="Confidence level of the detected fault type")
 
+    # Raw signal stats (passed through for anomaly detector baseline comparison)
+    rms_h: Optional[float] = Field(None, description="Horizontal channel RMS value")
+
     # Anomaly scores
     stat_score: Optional[float] = Field(None, description="Statistical anomaly score")
     rul_drop_score: Optional[float] = Field(None, description="RUL drop anomaly score")
