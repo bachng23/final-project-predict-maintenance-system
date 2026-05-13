@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
+
+function endpoint(path: string) {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
+}
+
 type DecisionAction = "approve" | "override" | "reject";
 
 type RawDecision = Record<string, unknown>;
@@ -81,7 +88,7 @@ function riskVariant(value: number): "success" | "warning" | "danger" {
 }
 
 async function fetchPendingDecisions(signal?: AbortSignal): Promise<PendingDecision[]> {
-  const response = await fetch("/api/decisions/pending", {
+  const response = await fetch(endpoint("/api/decisions/pending"), {
     cache: "no-store",
     headers: {
       Accept: "application/json",
@@ -98,7 +105,7 @@ async function fetchPendingDecisions(signal?: AbortSignal): Promise<PendingDecis
 }
 
 async function submitDecisionAction(decisionId: string, action: DecisionAction, reason?: string) {
-  const response = await fetch(`/api/decisions/${encodeURIComponent(decisionId)}/action`, {
+  const response = await fetch(endpoint(`/api/decisions/${encodeURIComponent(decisionId)}/action`), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
