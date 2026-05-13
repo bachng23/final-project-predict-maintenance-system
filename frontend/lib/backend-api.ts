@@ -70,6 +70,12 @@ type BackendEnvelope<T> = {
   count?: number;
   data?: T;
 };
+
+type OverviewResponse = {
+  summary?: unknown;
+  fleetTrend?: unknown;
+  bearings?: unknown;
+};
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 
 function endpoint(path: string) {
@@ -208,6 +214,31 @@ function normalizePredictionPoint(value: unknown, bearing: BearingSummary, index
   };
 }
 
+function normalizeFleetTelemetryPoint(value: unknown, index = 0): TelemetryPoint {
+  const point = asRecord(value);
+  const timestamp = asString(
+    point.timestamp ?? point.time ?? point.createdAt ?? point.created_at,
+    new Date(Date.now() - (23 - index) * 60 * 60 * 1000).toISOString(),
+  );
+
+  return {
+    timestamp,
+    vibration: asNumber(point.vibration ?? point.vibrationRms ?? point.vibration_rms, 0),
+    temperature: asNumber(point.temperature ?? point.temp, 0),
+    pressure: asNumber(point.pressure, 0),
+    healthScore: asNumber(point.healthScore ?? point.health_score ?? point.health, 0),
+    failureProbability: asPercent(
+      point.failureProbability ?? point.failure_probability ?? point.failure_prob ?? point.p_fail ?? point.risk,
+      0,
+    ),
+    rul: asHoursFromMinutes(
+      point.rul ?? point.rul_hours ?? point.rul_minutes ?? point.predictedFailureHours ?? point.remainingUsefulLife,
+      0,
+    ),
+    rpm: asNumber(point.rpm ?? point.speed, 0),
+  };
+}
+
 function computeTotals(bearings: BearingSummary[]) {
   return bearings.reduce(
     (totals, bearing) => {
@@ -340,20 +371,31 @@ function demoDashboard(): DashboardData {
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
   try {
-    const payload = unwrapEnvelope(await getJson<BackendEnvelope<unknown[]>>("/api/v1/bearings", signal));
-    const bearings = Array.isArray(payload) ? payload.map(normalizeBearing) : [];
+    const payload = unwrapEnvelope(await getJson<BackendEnvelope<OverviewResponse>>("/api/bearings/overview", signal));
+    const summary = asRecord(payload.summary);
+    const bearings = Array.isArray(payload.bearings) ? payload.bearings.map(normalizeBearing) : [];
+    const telemetry = Array.isArray(payload.fleetTrend)
+      ? payload.fleetTrend.map(normalizeFleetTelemetryPoint)
+      : buildFleetTelemetry(bearings);
 
     if (bearings.length) {
-      const totals = computeTotals(bearings);
+      const totals = {
+        bearings: asNumber(summary.totalBearings, bearings.length),
+        normal: asNumber(summary.normalCount ?? summary.healthyCount, bearings.filter((bearing) => bearing.status === "normal").length),
+        warning: asNumber(summary.warningCount, bearings.filter((bearing) => bearing.status === "warning").length),
+        critical: asNumber(summary.criticalCount, bearings.filter((bearing) => bearing.status === "critical").length),
+        offline: asNumber(summary.offlineCount, bearings.filter((bearing) => bearing.status === "offline").length),
+      };
+
       return {
         generatedAt: new Date().toISOString(),
         totals,
-        avgHealthScore: average(bearings.map((bearing) => bearing.healthScore)),
+        avgHealthScore: asNumber(summary.averageHealth, average(bearings.map((bearing) => bearing.healthScore))),
         avgFailureProbability: average(bearings.map((bearing) => bearing.failureProbability)),
         avgRul: average(bearings.map((bearing) => bearing.rul)),
-        activeAlerts: totals.warning + totals.critical,
+        activeAlerts: asNumber(summary.activeAlerts ?? summary.maintenanceDueSoon, totals.warning + totals.critical),
         bearings,
-        telemetry: buildFleetTelemetry(bearings),
+        telemetry,
         source: "backend",
       };
     }
