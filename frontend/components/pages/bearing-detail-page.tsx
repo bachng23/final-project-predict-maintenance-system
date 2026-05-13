@@ -5,12 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Clock3, Gauge, RotateCw, ShieldAlert, Thermometer, Waves } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { BearingTimeseriesChart } from "@/components/charts/bearing-timeseries-chart";
 import { D3Gauge } from "@/components/charts/d3-gauge";
-import { DemoControls } from "@/components/charts/demo-controls";
-import { RULChart } from "@/components/charts/rul-chart";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useRULStream } from "@/hooks/useRULStream";
 import { type BearingDetailData, fetchBearingDetail } from "@/lib/backend-api";
 
 function formatDateTime(timestamp: string) {
@@ -43,25 +41,28 @@ function statusVariant(status?: string) {
   if (status === "warning") return "warning";
   return "success";
 }
+
 export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const [data, setData] = useState<BearingDetailData | null>(null);
-  const [streamBearingId, setStreamBearingId] = useState(bearingId);
-  const { connected, points: livePoints } = useRULStream(streamBearingId);
-
-  const [gaugeFailure, setGaugeFailure] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (livePoints.length === 0) return;
-    const last = livePoints[livePoints.length - 1];
-    setGaugeFailure(last.pFail * 100);
-  }, [livePoints]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchBearingDetail(bearingId, controller.signal).then(setData).catch(() => undefined);
+
+    const load = async () => {
+      try {
+        setError(null);
+        const detail = await fetchBearingDetail(bearingId, controller.signal);
+        setData(detail);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Unable to load bearing detail.");
+      }
+    };
+
+    load();
 
     const timer = window.setInterval(() => {
-      fetchBearingDetail(bearingId, controller.signal).then(setData).catch(() => undefined);
+      load();
     }, 30000);
 
     return () => {
@@ -70,25 +71,26 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
     };
   }, [bearingId]);
 
-  const latest = data?.telemetry[data.telemetry.length - 1];
+  const latest = data?.telemetry.at(-1);
   const bearing = data?.bearing;
-  const fallbackRulMinutes = ((latest?.rul ?? bearing?.rul ?? 0) * 60);
-  const minRulMinutes = useMemo(() => {
-    if (livePoints.length === 0) return fallbackRulMinutes;
-    return Math.min(...livePoints.map((point) => point.rulMinutes));
-  }, [fallbackRulMinutes, livePoints]);
-  const maxRulMinutes = useMemo(() => {
-    if (livePoints.length === 0) return Math.max(fallbackRulMinutes, 1);
-    return Math.max(...livePoints.map((point) => point.rulMinutes), minRulMinutes, 1);
-  }, [fallbackRulMinutes, livePoints, minRulMinutes]);
-  const minRulHours = minRulMinutes / 60;
-  const maxRulHours = Math.max(maxRulMinutes / 60, 0.1);
-  // Prefer live stream values; fall back to static API data
-  const failureProbability = gaugeFailure ?? latest?.failureProbability ?? bearing?.failureProbability ?? 0;
+  const minRulHours = useMemo(() => {
+    if (!data?.telemetry.length) return latest?.rul ?? bearing?.rul ?? 0;
+    return Math.min(...data.telemetry.map((point) => point.rul));
+  }, [bearing?.rul, data?.telemetry, latest?.rul]);
+  const maxRulHours = useMemo(() => {
+    if (!data?.telemetry.length) return Math.max(latest?.rul ?? bearing?.rul ?? 1, 1);
+    return Math.max(...data.telemetry.map((point) => point.rul), 1);
+  }, [bearing?.rul, data?.telemetry, latest?.rul]);
+  const failureProbability = latest?.failureProbability ?? bearing?.failureProbability ?? 0;
+  const healthScore = latest?.healthScore ?? bearing?.healthScore ?? 0;
 
   return (
-    <AppShell active="bearing" status={data?.source ?? "demo"} title={`Bearing Detail ${bearing?.id ?? bearingId}`}>
+    <AppShell title={`Bearing Detail ${bearing?.id ?? bearingId}`}>
       <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
+        {error ? (
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>
+        ) : null}
+
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <Link className="inline-flex items-center gap-2 text-sm font-semibold text-blue-300 hover:text-blue-200" href="/">
@@ -107,7 +109,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Minimum RUL</CardTitle>
-              <CardDescription>Lowest RUL seen in this live stream</CardDescription>
+              <CardDescription>Lowest RUL observed in backend prediction history</CardDescription>
             </CardHeader>
             <CardContent>
               <D3Gauge label="Remaining Useful Life" max={maxRulHours} tone={rulTone(minRulHours)} unit="hr" value={minRulHours} />
@@ -119,11 +121,11 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>Failure Risk</CardTitle>
-              <CardDescription>Updates from the live prediction stream</CardDescription>
+              <CardTitle>Health Score</CardTitle>
+              <CardDescription>Most recent backend health prediction</CardDescription>
             </CardHeader>
             <CardContent>
-              <D3Gauge label="Failure Probability" tone={failureTone(failureProbability)} value={failureProbability} />
+              <D3Gauge label="Health Score" tone={rulTone((healthScore / 100) * 8)} value={healthScore} />
             </CardContent>
           </Card>
 
@@ -149,20 +151,25 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
           </Card>
         </section>
 
-        {/* Live RUL Stream */}
         <Card>
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle>Live RUL Stream</CardTitle>
-              <CardDescription>Real-time remaining useful life from the prediction pipeline · orange ⚠ markers = anomaly trigger</CardDescription>
-            </div>
-            <DemoControls
-              onStart={(id) => setStreamBearingId(id)}
-              onStop={() => setStreamBearingId(bearingId)}
-            />
+          <CardHeader>
+            <CardTitle>Historical Prediction Trend</CardTitle>
+            <CardDescription>
+              Time-series returned directly from the Web Backend for RUL, health score, and failure probability
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <RULChart connected={connected} points={livePoints} />
+            <BearingTimeseriesChart points={data?.telemetry ?? []} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Failure Risk</CardTitle>
+            <CardDescription>Most recent backend estimate for this bearing</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <D3Gauge label="Failure Probability" tone={failureTone(failureProbability)} value={failureProbability} />
           </CardContent>
         </Card>
 
