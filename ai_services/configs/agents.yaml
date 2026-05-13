@@ -1,1 +1,19 @@
+health_agent:
+  weights:
+    rul: 0.40
+    p_fail: 0.30
+    health_score: 0.20
+    fault_confidenc: 0.10
 
+cost_agent:
+  failure_cost_multiplier: 8.0
+  risk_weight: 0.60
+  cost_weight: 0.40
+
+production_agent:
+  downtime_threshold_hours: 4.0
+  load_threshold_pct: 85.0
+
+safety_agent:
+  personal_veto: true
+  secondary_failure_veto: true

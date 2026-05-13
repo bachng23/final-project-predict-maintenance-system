@@ -1,0 +1,22 @@
+{
+  "hidden": 64,
+  "n_layers": 2,
+  "dropout": 0.3,
+  "lr": 0.001,
+  "batch_size": 64,
+  "max_epochs": 200,
+  "patience": 15,
+  "alpha": 1.0,
+  "beta": 0.5,
+  "pos_weight": 5.0,
+  "mono_gamma": 0.0,
+  "use_film": false,
+  "seq_len": 30,
+  "horizon": 30,
+  "hi_column": "hi",
+  "feature_set": "baseline",
+  "multiscale": false,
+  "long_window": 120,
+  "pfail_loss_type": "focal",
+  "focal_gamma": 2.0
+}

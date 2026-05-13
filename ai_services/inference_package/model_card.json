@@ -1,0 +1,143 @@
+{
+  "name": "xjtu_sy_rul_predictor",
+  "version": "1.0",
+  "created_at": "2026-05-01T13:41:03",
+  "description": "Two-stage bearing RUL predictor for XJTU-SY dataset. Stage 1: Autoencoder health indicator from 70 statistical features. Stage 2: Bidirectional LSTM dual-head predicting RUL (regression) and P_fail within 30-min horizon (classification).",
+  "architecture": {
+    "stage_1_ae": {
+      "type": "Autoencoder",
+      "input_dim": 70,
+      "latent_dim": 8,
+      "dropout": 0.2,
+      "post_processing": [
+        "log1p",
+        "savgol_smooth",
+        "cumulative_max",
+        "per_bearing_normalize"
+      ]
+    },
+    "stage_2_lstm": {
+      "type": "BiLSTM + additive attention + dual heads",
+      "input_features": [
+        "hi_z",
+        "hi_velocity",
+        "hi_accel",
+        "rotation_hz_norm",
+        "load_kn_norm",
+        "time_norm"
+      ],
+      "input_dim": 6,
+      "seq_len": 30,
+      "hidden": 64,
+      "n_layers": 2,
+      "dropout": 0.3,
+      "bidirectional": true,
+      "rul_head": "attention-pooled context \u2192 MLP \u2192 sigmoid",
+      "pfail_head": "last-step context \u2192 MLP \u2192 sigmoid",
+      "pfail_loss": "focal"
+    }
+  },
+  "training": {
+    "dataset": "XJTU-SY Bearing Dataset",
+    "train_bearings": [
+      "Bearing1_1",
+      "Bearing1_2",
+      "Bearing2_2",
+      "Bearing2_3",
+      "Bearing3_2",
+      "Bearing3_5"
+    ],
+    "val_bearings": [
+      "Bearing1_3",
+      "Bearing2_1",
+      "Bearing3_3"
+    ],
+    "test_bearings": [
+      "Bearing1_4",
+      "Bearing1_5",
+      "Bearing2_4",
+      "Bearing2_5",
+      "Bearing3_1",
+      "Bearing3_4"
+    ],
+    "optimizer": "Adam",
+    "lr": 0.001,
+    "batch_size": 64,
+    "rul_target": "log1p(rul_min) / log1p(max_rul)  \u2014 log-normalised to [0,1]",
+    "rul_loss": "Huber (smooth_l1, beta=0.1)",
+    "pfail_loss": "focal",
+    "horizon_minutes": 30
+  },
+  "normalisation": {
+    "max_rul_minutes": 2495.0,
+    "log_max_rul": 7.822444729489319,
+    "hi_mean": 5.0084922328145565,
+    "hi_std": 1.9718196777203225,
+    "vel_std": 0.025715921074151993,
+    "acc_std": 0.012258848175406456,
+    "max_time_train": 2495.0
+  },
+  "input_schema": {
+    "sequence": {
+      "shape": [
+        30,
+        6
+      ],
+      "dtype": "float32",
+      "description": "(seq_len=30, features=6) sliding window of normalised features",
+      "channels": {
+        "hi_z": "Standardised health indicator (z-score on train set)",
+        "hi_velocity": "HI first-difference / vel_std  (degradation rate)",
+        "hi_accel": "HI second-difference / acc_std (degradation acceleration)",
+        "rotation_hz_norm": "Rotation speed: (hz - 35) / 5",
+        "load_kn_norm": "Load: (kN - 10) / 2",
+        "time_norm": "Time elapsed / max_train_time, clipped to [0, 1.5]"
+      }
+    }
+  },
+  "output_schema": {
+    "rul_log_norm": {
+      "range": [
+        0.0,
+        1.0
+      ],
+      "description": "Log-normalised RUL. Invert: expm1(value * log_max_rul) \u2192 minutes"
+    },
+    "pfail": {
+      "range": [
+        0.0,
+        1.0
+      ],
+      "description": "Probability of failure within 30 minutes"
+    },
+    "rul_minutes": {
+      "description": "RUL in minutes (post-processed from rul_log_norm)"
+    }
+  },
+  "performance": {
+    "test_overall": {
+      "mae_min": 798.0257568359375,
+      "rmse_min": 1015.016845703125,
+      "mape_pct": 97.86186218261719,
+      "phm_score": 185.2383679117061,
+      "f1_pfail": 0.38095238095238093,
+      "auc_roc": 0.9774040711277492,
+      "auc_pr": 0.5444965008986374
+    },
+    "note": "Test set contains 2 Pattern-C bearings (flat-then-sudden degradation). Non-Pattern-C test MAE is ~45 min; Pattern-C dominates the aggregate MAE."
+  },
+  "uncertainty": {
+    "method": "MC Dropout (50 forward passes)",
+    "ece": 0.03191217029544205,
+    "ood_threshold": 0.020365558564662933,
+    "note": "Sequences with RUL std > ood_threshold are flagged as high-uncertainty"
+  },
+  "artifacts": {
+    "ae_model.pt": "AE weights \u2014 load with HealthIndicatorAE(input_dim=70, latent=8)",
+    "scaler.pkl": "sklearn StandardScaler for 70 feature inputs",
+    "imputer.pkl": "sklearn SimpleImputer(strategy='median')",
+    "rul_model_best.pt": "LSTM weights \u2014 load with RULPredictor(hidden=64, n_layers=2, dropout=0.3, input_size=6)",
+    "rul_best_params.json": "Hyperparameters for reconstructing the model",
+    "rul_scaler.json": "Log-scale normalization constants for RUL target"
+  }
+}
