@@ -90,7 +90,10 @@ async function main() {
   // 5. Create Sample Decision
   await prisma.decision.upsert({
     where: { snapshotId: snapshot.id },
-    update: {},
+    update: {
+      decisionStatus: 'PENDING',
+      resolvedAt: null
+    },
     create: {
       snapshotId: snapshot.id,
       recommendedAction: 'INSPECT',
