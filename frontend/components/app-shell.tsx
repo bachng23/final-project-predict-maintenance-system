@@ -35,7 +35,7 @@ const navItems = [
   { href: "/analytics", label: "Analytics", icon: Activity },
   { href: "/assets", label: "Assets", icon: Gauge },
   { href: "/bearings", label: "Bearings", icon: Wrench },
-  { href: "/policy", label: "Policy Bands", icon: Shield },
+  { href: "/policy", label: "Decision Queue", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
