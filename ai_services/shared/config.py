@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     @property
     def ollama_url(self) -> str:
         return f"http://{self.OLLAMA_HOST}:{self.OLLAMA_PORT}"
+
+    # OpenRouter fallback for orchestrator LLM agents
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_DEFAULT_MODEL: str = "openai/gpt-4o-mini"
+    OPENROUTER_APP_URL: str = "http://localhost"
+    OPENROUTER_APP_TITLE: str = "Predictive Maintenance Orchestrator"
     
     # Langfuse
     LANGFUSE_HOST: str = "http://langfuse:3000"
@@ -81,6 +87,9 @@ class Settings(BaseSettings):
 
     # Data
     DATA_ROOT: str = "/data/xjtu-sy"
+
+    # Audit
+    AUDIT_DIR: str = "/data/audit"
 
 
 @lru_cache()

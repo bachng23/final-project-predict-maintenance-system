@@ -163,6 +163,10 @@ async def upsert_prediction(record: PredictionRecord) -> str:
                 ood_flag          = EXCLUDED.ood_flag,
                 fault_type        = EXCLUDED.fault_type,
                 fault_confidence  = EXCLUDED.fault_confidence,
+                stat_score        = EXCLUDED.stat_score,
+                rul_drop_score    = EXCLUDED.rul_drop_score,
+                hybrid_score      = EXCLUDED.hybrid_score,
+                threshold_tau     = EXCLUDED.threshold_tau,
                 pipeline_run_id   = EXCLUDED.pipeline_run_id
             RETURNING id
             """,
@@ -187,14 +191,14 @@ async def update_anomaly_scores(
     rul_drop_score: Optional[float],
     hybrid_score: Optional[float],
     threshold_tau: Optional[float],
-) -> None:
+) -> int:
     """
     Called by anomaly service to fill in scores after predictor has
     already INSERT-ed the row.
     """
     bearing_uuid = await get_bearing_uuid(bearing_id)
     async with acquire() as conn:
-        await conn.execute(
+        status = await conn.execute(
             """
             UPDATE predictions
             SET stat_score     = $4,
@@ -208,6 +212,11 @@ async def update_anomaly_scores(
             bearing_uuid, file_idx, model_version,
             stat_score, rul_drop_score, hybrid_score, threshold_tau,
         )
+    try:
+        return int(status.split()[-1])
+    except (IndexError, ValueError):
+        logger.warning("Could not parse PostgreSQL update status: %s", status)
+        return 0
 
 
 # Snapshots
@@ -247,9 +256,25 @@ async def insert_snapshot(snapshot: SnapshotPayload) -> str:
             snapshot.trigger_source,
             snapshot.feature_vector_ref,
             snapshot.signal_window_ref,
-            summary,          # asyncpg JSONB codec nhận dict trực tiếp, không cần json.dumps
+            json.dumps(summary),  # explicit serialisation — no custom asyncpg codec registered
         )
     return str(row["id"])
+
+
+async def get_snapshot_id_by_prediction_id(prediction_id: str) -> Optional[str]:
+    """Return the latest persisted snapshot id for a prediction, if present."""
+    async with acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id
+            FROM snapshots
+            WHERE prediction_id = $1
+            ORDER BY snapshot_ts DESC
+            LIMIT 1
+            """,
+            prediction_id,
+        )
+    return str(row["id"]) if row else None
 
 
 # Decisions
@@ -428,3 +453,55 @@ async def is_resolved(snapshot_id: str) -> bool:
     if decision is None:
         return False
     return decision["decision_status"] == "RESOLVED"
+
+
+async def get_decision_with_snapshot(decision_id: str) -> Optional[dict]:
+    """Return decision + snapshot context needed to write a JSONL audit entry."""
+    async with acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT
+                d.id              AS decision_id,
+                d.recommended_action,
+                d.snapshot_id,
+                b.bearing_id      AS bearing_label
+            FROM decisions d
+            JOIN snapshots s ON s.id = d.snapshot_id
+            JOIN bearings  b ON b.id = s.bearing_id
+            WHERE d.id = $1::uuid
+            """,
+            decision_id,
+        )
+    return dict(row) if row else None
+
+
+async def get_all_audit_records(since: Optional[str] = None) -> list[dict]:
+    """
+    Return all HITL audit records joined with decision + snapshot context.
+    ``since`` is an ISO-8601 timestamp string; when supplied only records
+    submitted after that moment are returned.
+    """
+    async with acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT
+                da.submitted_at,
+                b.bearing_id                    AS bearing_label,
+                s.id::text                      AS snapshot_id,
+                d.recommended_action            AS agent_decision,
+                da.action                       AS human_action,
+                da.final_action                 AS human_decision,
+                da.override_reason              AS reason,
+                da.actor_user_id                AS operator,
+                da.actor_role,
+                da.source
+            FROM decision_actions da
+            JOIN decisions d  ON d.id  = da.decision_id
+            JOIN snapshots s  ON s.id  = d.snapshot_id
+            JOIN bearings  b  ON b.id  = s.bearing_id
+            WHERE ($1::timestamptz IS NULL OR da.submitted_at > $1::timestamptz)
+            ORDER BY da.submitted_at ASC
+            """,
+            since,
+        )
+    return [dict(r) for r in rows]

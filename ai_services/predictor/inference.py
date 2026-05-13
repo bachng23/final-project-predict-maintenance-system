@@ -17,7 +17,21 @@ log = logging.getLogger(__name__)
 # Each entry: {"hi_raw": float, "ts_minutes": float, "rpm": int, "load_kn": float}
 _hi_history: dict[str, deque] = {}
 SEQ_LEN = 30
+MAX_HISTORY_BEARINGS = 50
+HISTORY_EVICT_COUNT = 10
 
+
+def _cleanup_hi_history() -> None:
+    """Keep per-bearing HI buffers bounded during long stress/demo runs."""
+    if len(_hi_history) <= MAX_HISTORY_BEARINGS:
+        return
+    eviction_count = min(HISTORY_EVICT_COUNT, len(_hi_history) - MAX_HISTORY_BEARINGS)
+    oldest = sorted(
+        _hi_history.keys(),
+        key=lambda key: _hi_history[key][-1]["ts_minutes"] if _hi_history[key] else -1.0,
+    )[:eviction_count]
+    for bearing_id in oldest:
+        del _hi_history[bearing_id]
 
 
 
@@ -225,7 +239,21 @@ def predict(record: FeatureRecord, ctx: BearingContext) -> PredictionRecord:
     Maintains per-bearing HI history buffer internally.
     """
     ml.assert_loaded()
+    _cleanup_hi_history()
     n_passes = ml.model_card.get("uncertainty", {}).get("mc_passes", 50)
+
+    # Detect replay / restart: if elapsed_minutes regressed, the bearing run
+    # has been reset (demo replay or new real run starting from file 1).
+    # Discard the stale buffer so the sequence doesn't mix old and new data.
+    existing = _hi_history.get(record.bearing_id)
+    if existing and existing[-1]["ts_minutes"] > ctx.elapsed_minutes:
+        log.info(
+            "[%s] Replay detected (elapsed %.1f < last %.1f) — resetting HI buffer",
+            record.bearing_id,
+            ctx.elapsed_minutes,
+            existing[-1]["ts_minutes"],
+        )
+        del _hi_history[record.bearing_id]
 
     # Stage 1
     hi_raw, _ = run_ae(record.features)

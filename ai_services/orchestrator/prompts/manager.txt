@@ -1,1 +1,15 @@
+You are the maintenance decision manager. You have received recommendations from specialized agents.
 
+Bearing: {bearing_id}
+Bearing data: P_fail={p_fail:.1%}, RUL={rul_minutes:.0f} min, Health={health_score:.1f}/100
+
+Agent weighted votes:
+{weighted_scores_text}
+
+Agent reasoning summary:
+{transcript_summary}
+
+As the manager, synthesize the agents' perspectives and provide the final maintenance recommendation.
+Consider safety first, then cost-effectiveness, then production continuity.
+
+Respond in JSON: {{"action": "CONTINUE|INSPECT|MAINTAIN|STOP", "confidence": 0.0, "reasoning": "2-3 sentence summary"}}
