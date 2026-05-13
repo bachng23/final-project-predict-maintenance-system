@@ -1,12 +1,15 @@
-<<<<<<< HEAD
 const { z } = require('zod');
 const decisionService = require('../services/decision.service');
 
 // Zod schema for decision action
 const decisionActionSchema = z.object({
-  action: z.enum(['APPROVE', 'OVERRIDE', 'REJECT', 'ACKNOWLEDGE']),
+  // Make action case-insensitive (Recommendation Step 2)
+  action: z.string().transform(v => v.toUpperCase()).pipe(
+    z.enum(['APPROVE', 'OVERRIDE', 'REJECT', 'ACKNOWLEDGE'])
+  ),
   overrideReason: z.string().optional(),
-  expectedVersion: z.number(),
+  // Make expectedVersion optional for backward compatibility (Recommendation Step 3)
+  expectedVersion: z.number().optional(),
   selected_action: z.enum(['CONTINUE', 'INSPECT', 'MAINTAIN', 'STOP']).optional(),
 }).refine(data => {
   if (data.action === 'OVERRIDE') {
@@ -20,21 +23,10 @@ const decisionActionSchema = z.object({
 
 /**
  * GET /api/decisions/pending
-=======
-const decisionService = require('../services/decision.service');
-
-/**
- * GET /api/v1/decisions/pending
- * Get all pending decisions for HITL review
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
  */
 const getPendingDecisions = async (req, res, next) => {
   try {
     const decisions = await decisionService.getPendingDecisions();
-<<<<<<< HEAD
-=======
-
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
     res.json({
       success: true,
       count: decisions.length,
@@ -46,7 +38,6 @@ const getPendingDecisions = async (req, res, next) => {
 };
 
 /**
-<<<<<<< HEAD
  * GET /api/decisions/:id
  */
 const getDecisionById = async (req, res, next) => {
@@ -108,40 +99,12 @@ const handleDecisionAction = async (req, res, next) => {
       });
     }
 
-=======
- * POST /api/v1/decisions/:id/action
- * Submit an action for a decision
- */
-const submitDecisionAction = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { action, reason } = req.body;
-
-    if (!action) {
-      return res.status(400).json({
-        success: false,
-        message: 'Action is required',
-      });
-    }
-
-    const result = await decisionService.submitDecisionAction(id, action, reason);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
     next(error);
   }
 };
 
 module.exports = {
   getPendingDecisions,
-<<<<<<< HEAD
   getDecisionById,
   handleDecisionAction,
-=======
-  submitDecisionAction,
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
 };

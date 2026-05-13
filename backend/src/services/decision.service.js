@@ -1,14 +1,8 @@
 const prisma = require('../config/prisma');
-<<<<<<< HEAD
 const { getIO } = require('./ws.service');
 
 /**
  * Get all pending decisions with snapshot summary
-=======
-
-/**
- * Get all pending decisions for HITL review
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
  * @returns {Promise<Array>}
  */
 const getPendingDecisions = async () => {
@@ -18,7 +12,6 @@ const getPendingDecisions = async () => {
     },
     include: {
       snapshot: {
-<<<<<<< HEAD
         select: {
           summaryJson: true,
           snapshotTs: true,
@@ -29,50 +22,38 @@ const getPendingDecisions = async () => {
               displayName: true,
             },
           },
-=======
-        include: {
-          bearing: true,
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
         },
       },
     },
     orderBy: {
-<<<<<<< HEAD
       openedAt: 'desc',
-=======
-      createdAt: 'desc',
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
     },
   });
 
-  return decisions.map((d) => ({
-    id: d.id,
-<<<<<<< HEAD
-    bearing_id: d.snapshot.bearing.bearingId,
-    display_name: d.snapshot.bearing.displayName,
-    recommended_action: d.recommendedAction,
-    recommended_confidence: d.recommendedConfidence,
-    priority: d.priority,
-    safety_veto: d.safetyVeto,
-    reason_summary: d.reasonSummary,
-    opened_at: d.openedAt,
-    snapshot_ts: d.snapshot.snapshotTs,
-    trigger_source: d.snapshot.triggerSource,
-    summary: d.snapshot.summaryJson,
-    version: d.version,
-=======
-    bearingId: d.snapshot?.bearing?.bearingId || 'Unknown',
-    pFail: d.failureProbability ?? 0,
-    rul: d.rulHours ?? 0,
-    faultType: d.predictedFault || 'Unclassified',
-    recommendedAction: d.recommendedAction || 'Manual review required',
-    createdAt: d.createdAt,
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
-  }));
+  return decisions.map((d) => {
+    const summary = d.snapshot.summaryJson || {};
+    return {
+      id: d.id,
+      bearing_id: d.snapshot.bearing.bearingId,
+      display_name: d.snapshot.bearing.displayName,
+      recommended_action: d.recommendedAction,
+      recommended_confidence: d.recommendedConfidence,
+      priority: d.priority,
+      safety_veto: d.safetyVeto,
+      reason_summary: d.reasonSummary,
+      opened_at: d.openedAt,
+      snapshot_ts: d.snapshot.snapshotTs,
+      trigger_source: d.snapshot.triggerSource,
+      summary: summary,
+      version: d.version,
+      // Restore top-level fields for frontend compatibility (PR #58)
+      pFail: summary.pFail ?? 0,
+      rul: summary.rul ?? 0,
+    };
+  });
 };
 
 /**
-<<<<<<< HEAD
  * Get decision by ID with full details
  * @param {string} id 
  * @returns {Promise<Object>}
@@ -128,21 +109,33 @@ const processDecisionAction = async (decisionId, data) => {
     }
 
     // 3. Optimistic locking check
-    // We use updateMany to ensure atomicity of the version check
-    const updatedCount = await tx.decision.updateMany({
-      where: {
-        id: decisionId,
-        version: expected_version,
-      },
-      data: {
-        decisionStatus: decision.safetyVeto && action === 'ACKNOWLEDGE' ? 'ACKNOWLEDGED' : 'RESOLVED',
-        resolvedAt: new Date(),
-        version: { increment: 1 },
-      },
-    });
+    // We only check version if expected_version is provided (Progressive locking)
+    if (expected_version !== undefined) {
+      const updatedCount = await tx.decision.updateMany({
+        where: {
+          id: decisionId,
+          version: expected_version,
+        },
+        data: {
+          decisionStatus: decision.safetyVeto && action === 'ACKNOWLEDGE' ? 'ACKNOWLEDGED' : 'RESOLVED',
+          resolvedAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
 
-    if (updatedCount.count === 0) {
-      throw new Error('DECISION_CONFLICT: Decision was modified by another operator');
+      if (updatedCount.count === 0) {
+        throw new Error('DECISION_CONFLICT: Decision was modified by another operator');
+      }
+    } else {
+      // Fallback if version not provided (deprecated but supports old frontend)
+      await tx.decision.update({
+        where: { id: decisionId },
+        data: {
+          decisionStatus: decision.safetyVeto && action === 'ACKNOWLEDGE' ? 'ACKNOWLEDGED' : 'RESOLVED',
+          resolvedAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
     }
 
     // 4. Fetch the updated record
@@ -220,54 +213,10 @@ const processDecisionAction = async (decisionId, data) => {
 
     return updatedDecision;
   });
-=======
- * Submit an action for a decision (Approve, Override, Reject)
- * @param {string} decisionId 
- * @param {string} action 
- * @param {string} reason 
- * @returns {Promise<Object>}
- */
-const submitDecisionAction = async (decisionId, action, reason) => {
-  const statusMap = {
-    approve: 'RESOLVED',
-    override: 'RESOLVED',
-    reject: 'ACKNOWLEDGED',
-  };
-
-  const status = statusMap[action.toLowerCase()];
-  if (!status) {
-    throw new Error(`Invalid action: ${action}`);
-  }
-
-  // Update the decision status
-  const updatedDecision = await prisma.decision.update({
-    where: { id: decisionId },
-    data: {
-      decisionStatus: status,
-    },
-  });
-
-  // Log the action in decision_actions table if it exists in schema
-  // Based on migration, there is a decision_actions table
-  await prisma.decisionAction.create({
-    data: {
-      decisionId: decisionId,
-      actionType: action.toUpperCase(),
-      reason: reason || null,
-      actor: 'HITL_USER',
-    },
-  });
-
-  return updatedDecision;
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
 };
 
 module.exports = {
   getPendingDecisions,
-<<<<<<< HEAD
   getDecisionById,
   processDecisionAction,
-=======
-  submitDecisionAction,
->>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
 };
