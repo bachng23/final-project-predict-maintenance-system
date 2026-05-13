@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import logging
 from collections import deque
-from datetime import datetime, timezone
 from typing import Optional
 
 import numpy as np
@@ -242,12 +241,20 @@ def predict(record: FeatureRecord, ctx: BearingContext) -> PredictionRecord:
     # Stage 2
     mc = run_mc_dropout(seq, n_passes=n_passes)
 
-    hi_mean = ml.rul_scaler["hi_mean"]
-    hi_std  = ml.rul_scaler["hi_std"]
-    hi_z_raw = (hi_raw - hi_mean) / (hi_std + 1e-9)
-    p_fail   = float(1.0 / (1.0 + math.exp(-hi_z_raw)))
+    p_fail_raw = mc["pfail_raw"]
+    p_fail = _platt_calibrate(p_fail_raw)
     health_score = round((1.0 - p_fail) * 100.0, 2)
-    deg_rate    = _degradation_rate(record.bearing_id)
+
+    log.info(
+        "[%s] pfail_raw=%.4f pfail_calibrated=%.4f hi_raw=%.4f health=%.1f",
+        record.bearing_id,
+        p_fail_raw,
+        p_fail,
+        hi_raw,
+        health_score,
+    )
+
+    deg_rate = _degradation_rate(record.bearing_id)
 
     return PredictionRecord(
         bearing_id=record.bearing_id,

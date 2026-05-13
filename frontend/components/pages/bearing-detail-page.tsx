@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Clock3, Gauge, RotateCw, ShieldAlert, Thermometer, Waves } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
@@ -22,9 +22,13 @@ function formatDateTime(timestamp: string) {
   }).format(new Date(timestamp));
 }
 
-function healthTone(value: number): "emerald" | "amber" | "rose" {
-  if (value < 70) return "rose";
-  if (value < 84) return "amber";
+function formatRulHours(hours: number) {
+  return `${hours.toFixed(1)} hr`;
+}
+
+function rulTone(hours: number): "emerald" | "amber" | "rose" {
+  if (hours < 2) return "rose";
+  if (hours < 5) return "amber";
   return "emerald";
 }
 
@@ -44,18 +48,11 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
   const [streamBearingId, setStreamBearingId] = useState(bearingId);
   const { connected, points: livePoints } = useRULStream(streamBearingId);
 
-  // Throttled gauge values — update at most every 2.5 s so the gauge doesn't flicker
-  const [gaugeHealth, setGaugeHealth] = useState<number | null>(null);
   const [gaugeFailure, setGaugeFailure] = useState<number | null>(null);
-  const lastGaugeUpdate = useRef(0);
 
   useEffect(() => {
     if (livePoints.length === 0) return;
-    const now = Date.now();
-    if (now - lastGaugeUpdate.current < 2500) return;
-    lastGaugeUpdate.current = now;
     const last = livePoints[livePoints.length - 1];
-    setGaugeHealth(last.healthScore);
     setGaugeFailure(last.pFail * 100);
   }, [livePoints]);
 
@@ -75,8 +72,18 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
 
   const latest = data?.telemetry[data.telemetry.length - 1];
   const bearing = data?.bearing;
+  const fallbackRulMinutes = ((latest?.rul ?? bearing?.rul ?? 0) * 60);
+  const minRulMinutes = useMemo(() => {
+    if (livePoints.length === 0) return fallbackRulMinutes;
+    return Math.min(...livePoints.map((point) => point.rulMinutes));
+  }, [fallbackRulMinutes, livePoints]);
+  const maxRulMinutes = useMemo(() => {
+    if (livePoints.length === 0) return Math.max(fallbackRulMinutes, 1);
+    return Math.max(...livePoints.map((point) => point.rulMinutes), minRulMinutes, 1);
+  }, [fallbackRulMinutes, livePoints, minRulMinutes]);
+  const minRulHours = minRulMinutes / 60;
+  const maxRulHours = Math.max(maxRulMinutes / 60, 0.1);
   // Prefer live stream values; fall back to static API data
-  const healthScore = gaugeHealth ?? latest?.healthScore ?? bearing?.healthScore ?? 0;
   const failureProbability = gaugeFailure ?? latest?.failureProbability ?? bearing?.failureProbability ?? 0;
 
   return (
@@ -99,11 +106,14 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
         <section className="grid gap-6 lg:grid-cols-[0.7fr_0.7fr_1fr]">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>Health Score</CardTitle>
-              <CardDescription>Updates from the live prediction stream</CardDescription>
+              <CardTitle>Minimum RUL</CardTitle>
+              <CardDescription>Lowest RUL seen in this live stream</CardDescription>
             </CardHeader>
             <CardContent>
-              <D3Gauge label="Bearing Health" tone={healthTone(healthScore)} value={healthScore} />
+              <D3Gauge label="Remaining Useful Life" max={maxRulHours} tone={rulTone(minRulHours)} unit="hr" value={minRulHours} />
+              <p className="-mt-4 text-center text-xs font-semibold text-slate-400">
+                {formatRulHours(minRulHours)} minimum observed
+              </p>
             </CardContent>
           </Card>
 

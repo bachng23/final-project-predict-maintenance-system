@@ -50,16 +50,18 @@ async def handle_feature_message(raw: bytes) -> None:
     prediction = prediction.model_copy(update={
         "fault_type": fault_type,
         "fault_confidence": fault_conf,
+        "rms_h": record.features.get("h_rms"),
     })
 
     await publish_prediction(prediction)
 
     log.info(
-        "[%s] file_idx=%d → rul=%.0f min  p_fail=%.3f  fault=%s",
+        "[%s] file_idx=%d → rul=%.0f min  p_fail=%.3f  health=%.1f  fault=%s",
         prediction.bearing_id,
         prediction.file_idx,
         prediction.rul_minutes,
         prediction.p_fail,
+        prediction.health_score,
         fault_type,
     )
 

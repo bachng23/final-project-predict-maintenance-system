@@ -15,6 +15,8 @@ from signal_processor.feature_extractor import CONDITION_RPM, extract_features
 
 logger = logging.getLogger(__name__)
 
+CONDITION_LOAD_KN: dict[int, float] = {1: 12.0, 2: 11.0, 3: 10.0}
+
 
 async def handle_vibration_message(raw: bytes) -> None:
     """
@@ -63,6 +65,13 @@ async def handle_vibration_message(raw: bytes) -> None:
     # 4. Upload feature vector to MinIO (ordered by FEATURE_ORDER for ML use)
     feature_values = np.array(list(features.values()), dtype=np.float32)
     feature_vector_ref = await upload_features(bearing_id, file_idx, feature_values)
+
+    # Attach operating context used by the RUL sequence builder. Keep this after
+    # feature upload so the persisted vector remains the original 70 ML features.
+    features["rpm"] = float(rpm)
+    features["load_kn"] = CONDITION_LOAD_KN.get(msg.condition, 12.0)
+    features["elapsed_minutes"] = float(max(file_idx - 1, 0))
+    features["h_rms"] = float(np.sqrt(np.mean(signal_arr[0].astype(np.float64) ** 2)))
 
     # 5. Build and publish FeatureRecord
     lifetime_pct = file_idx / max(msg.total_files, 1)
