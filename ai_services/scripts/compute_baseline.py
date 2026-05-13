@@ -29,10 +29,16 @@ DEFAULT_TRAIN_BEARINGS = [
 THRESHOLDS_PATH = Path(__file__).parent.parent / "configs" / "thresholds.yaml"
 DATA_ROOT = Path("/data/xjtu-sy")
 
+_CONDITION_FOLDER = {
+    "1": "35Hz12kN",
+    "2": "37.5Hz11kN",
+    "3": "40Hz10kN",
+}
+
 
 def _load_csv_signal(path: Path) -> tuple[np.ndarray, np.ndarray]:
     """Return (h_signal, v_signal) as float32 arrays from XJTU-SY CSV."""
-    data = np.loadtxt(path, delimiter=",", skiprows=0, dtype=np.float32)
+    data = np.loadtxt(path, delimiter=",", skiprows=1, dtype=np.float32)
     return data[:, 0], data[:, 1]
 
 
@@ -52,12 +58,16 @@ def compute_baseline(bearings: list[str], data_root: Path) -> dict:
     rms_vals, kurt_vals = [], []
 
     for bearing_id in bearings:
-        bearing_dir = data_root / bearing_id
+        cond = bearing_id.replace("Bearing", "").replace("bearing", "").split("_")[0]
+        condition_folder = _CONDITION_FOLDER.get(cond)
+        bearing_dir = data_root / condition_folder / bearing_id if condition_folder else data_root / bearing_id
+        if not bearing_dir.exists():
+            bearing_dir = data_root / bearing_id
         if not bearing_dir.exists():
             log.warning("Bearing dir not found: %s — skipping", bearing_dir)
             continue
 
-        csv_files = sorted(bearing_dir.glob("*.csv"))
+        csv_files = sorted(bearing_dir.glob("*.csv"), key=lambda p: int(p.stem))
         if not csv_files:
             log.warning("No CSV files in %s — skipping", bearing_dir)
             continue
@@ -68,7 +78,7 @@ def compute_baseline(bearings: list[str], data_root: Path) -> dict:
         log.info("%s: %d total files, using first %d as healthy", bearing_id, len(csv_files), n_healthy)
 
         for csv_path in healthy_files:
-            h_sig, v_sig = _load_csv_signal(csv_path)
+            h_sig, _ = _load_csv_signal(csv_path)
             # Use horizontal channel (h) as primary, consistent with feature_extractor
             rms_vals.append(_rms(h_sig))
             kurt_vals.append(_kurtosis(h_sig))

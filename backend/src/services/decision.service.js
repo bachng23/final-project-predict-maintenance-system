@@ -1,8 +1,14 @@
 const prisma = require('../config/prisma');
+<<<<<<< HEAD
 const { getIO } = require('./ws.service');
 
 /**
  * Get all pending decisions with snapshot summary
+=======
+
+/**
+ * Get all pending decisions for HITL review
+>>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
  * @returns {Promise<Array>}
  */
 const getPendingDecisions = async () => {
@@ -12,6 +18,7 @@ const getPendingDecisions = async () => {
     },
     include: {
       snapshot: {
+<<<<<<< HEAD
         select: {
           summaryJson: true,
           snapshotTs: true,
@@ -22,16 +29,25 @@ const getPendingDecisions = async () => {
               displayName: true,
             },
           },
+=======
+        include: {
+          bearing: true,
+>>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
         },
       },
     },
     orderBy: {
+<<<<<<< HEAD
       openedAt: 'desc',
+=======
+      createdAt: 'desc',
+>>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
     },
   });
 
   return decisions.map((d) => ({
     id: d.id,
+<<<<<<< HEAD
     bearing_id: d.snapshot.bearing.bearingId,
     display_name: d.snapshot.bearing.displayName,
     recommended_action: d.recommendedAction,
@@ -44,10 +60,19 @@ const getPendingDecisions = async () => {
     trigger_source: d.snapshot.triggerSource,
     summary: d.snapshot.summaryJson,
     version: d.version,
+=======
+    bearingId: d.snapshot?.bearing?.bearingId || 'Unknown',
+    pFail: d.failureProbability ?? 0,
+    rul: d.rulHours ?? 0,
+    faultType: d.predictedFault || 'Unclassified',
+    recommendedAction: d.recommendedAction || 'Manual review required',
+    createdAt: d.createdAt,
+>>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
   }));
 };
 
 /**
+<<<<<<< HEAD
  * Get decision by ID with full details
  * @param {string} id 
  * @returns {Promise<Object>}
@@ -195,10 +220,54 @@ const processDecisionAction = async (decisionId, data) => {
 
     return updatedDecision;
   });
+=======
+ * Submit an action for a decision (Approve, Override, Reject)
+ * @param {string} decisionId 
+ * @param {string} action 
+ * @param {string} reason 
+ * @returns {Promise<Object>}
+ */
+const submitDecisionAction = async (decisionId, action, reason) => {
+  const statusMap = {
+    approve: 'RESOLVED',
+    override: 'RESOLVED',
+    reject: 'ACKNOWLEDGED',
+  };
+
+  const status = statusMap[action.toLowerCase()];
+  if (!status) {
+    throw new Error(`Invalid action: ${action}`);
+  }
+
+  // Update the decision status
+  const updatedDecision = await prisma.decision.update({
+    where: { id: decisionId },
+    data: {
+      decisionStatus: status,
+    },
+  });
+
+  // Log the action in decision_actions table if it exists in schema
+  // Based on migration, there is a decision_actions table
+  await prisma.decisionAction.create({
+    data: {
+      decisionId: decisionId,
+      actionType: action.toUpperCase(),
+      reason: reason || null,
+      actor: 'HITL_USER',
+    },
+  });
+
+  return updatedDecision;
+>>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
 };
 
 module.exports = {
   getPendingDecisions,
+<<<<<<< HEAD
   getDecisionById,
   processDecisionAction,
+=======
+  submitDecisionAction,
+>>>>>>> 65602107790586e966cb3f5a5342d35b62b7b020
 };

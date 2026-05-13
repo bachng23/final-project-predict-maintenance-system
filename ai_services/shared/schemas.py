@@ -26,6 +26,11 @@ class FeatureRecord(BaseModel):
     lifetime_pct: float = Field(..., description="Percentage of the bearing's lifetime")
     features: dict[str, float] = Field(..., description="Dictionary of feature names and their values")
 
+    # Storage refs — propagated so downstream services can attach them to
+    # snapshots without having to reconstruct MinIO keys independently.
+    signal_window_ref: Optional[str] = Field(None, description="MinIO key of the raw signal .npy (from ingestion)")
+    feature_vector_ref: Optional[str] = Field(None, description="MinIO key of the feature vector .npy (from signal_processor)")
+
 
 class PredictionRecord(BaseModel):
     "The output of predictor service"
@@ -61,6 +66,11 @@ class PredictionRecord(BaseModel):
     rul_drop_score: Optional[float] = Field(None, description="RUL drop anomaly score")
     hybrid_score: Optional[float] = Field(None, description="Hybrid anomaly score combining multiple factors")
     threshold_tau: Optional[float] = Field(None, description="Threshold for triggering maintenance actions based on anomaly scores")
+
+    # Storage refs — carried from FeatureRecord so the anomaly snapshot builder
+    # can attach them to SnapshotPayload without reconstructing MinIO keys.
+    signal_window_ref: Optional[str] = Field(None, description="MinIO key of the raw signal .npy")
+    feature_vector_ref: Optional[str] = Field(None, description="MinIO key of the feature vector .npy")
 
     # Metadata
     model_version: str = Field(..., description="Version of the prediction model used")

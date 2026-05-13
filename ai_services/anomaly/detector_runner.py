@@ -71,10 +71,11 @@ async def run() -> None:
                 trigger.bearing_id, trigger.file_idx,
                 trigger.hybrid_score, trigger.escalation,
             )
-            try:
-                await build_and_persist(pred, trigger)
-            except Exception as exc:
-                log.error("Snapshot build failed for %s: %s", pred.bearing_id, exc)
+            # Do NOT catch exceptions here.  consume_loop re-raises handler
+            # errors and will skip the Kafka commit, so this message is
+            # redelivered on restart.  Swallowing the error would ack the
+            # message even when the snapshot was never persisted.
+            await build_and_persist(pred, trigger)
 
     await consume_loop(
         topic    = TOPIC_PREDICTIONS,

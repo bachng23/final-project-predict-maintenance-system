@@ -3,7 +3,7 @@ health_agent:
     rul: 0.40
     p_fail: 0.30
     health_score: 0.20
-    fault_confidenc: 0.10
+    fault_confidence: 0.10
 
 cost_agent:
   failure_cost_multiplier: 8.0

@@ -10,7 +10,7 @@ from predictor.fault_detector import detect as detect_fault
 from predictor.inference import BearingContext, predict
 from shared.cache import cache_prediction
 from shared.database import close_pool, upsert_prediction
-from shared.messaging import get_producer
+from shared.messaging import close_producer, publish_prediction
 from shared.schemas import FeatureRecord, PredictionRecord
 
 log = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
     ml.load_all_models()
     yield
     await close_pool()
+    await close_producer()
 
 
 app = FastAPI(title="Predictor Service", lifespan=lifespan)
@@ -47,11 +48,13 @@ async def predict_endpoint(record: FeatureRecord):
 
     prediction = predict(record, ctx)
 
-    # Append fault detection
+    # Append fault detection + propagate MinIO refs from FeatureRecord
     fault_type, fault_conf = detect_fault(record.features)
     prediction = prediction.model_copy(update={
         "fault_type": fault_type,
         "fault_confidence": fault_conf,
+        "signal_window_ref": record.signal_window_ref,
+        "feature_vector_ref": record.feature_vector_ref,
     })
 
     # Persist + forward (fire-and-forget, don't block response)
@@ -62,13 +65,12 @@ async def predict_endpoint(record: FeatureRecord):
         log.warning("DB write failed (non-fatal): %s", exc)
 
     try:
-        producer = get_producer()
-        producer.produce_json("predictions.ready", prediction.model_dump(mode="json"))
+        await publish_prediction(prediction)
     except Exception as exc:
         log.warning("Kafka publish failed (non-fatal): %s", exc)
 
     try:
-        await cache_prediction(prediction.bearing_id, prediction.model_dump(mode="json"))
+        await cache_prediction(prediction)
     except Exception as exc:
         log.debug("Cache write failed (non-fatal): %s", exc)
 

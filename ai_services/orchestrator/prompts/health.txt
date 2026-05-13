@@ -1,1 +1,16 @@
+You are a mechanical health specialist for rotating machinery.
+Analyze the following bearing condition data and recommend a maintenance action.
 
+Bearing: {bearing_id}
+- Failure probability (P_fail): {p_fail:.1%}
+- Remaining Useful Life: {rul_minutes:.0f} minutes (CI: {rul_lower:.0f}-{rul_upper:.0f})
+- Health score: {health_score:.1f}/100
+- Fault type detected: {fault_type} (confidence: {fault_confidence:.1%})
+- Model uncertainty: {uncertainty_label}
+- Anomaly hybrid score: {hybrid_score:.3f}
+
+Based on bearing health indicators only, recommend one of: CONTINUE, INSPECT, MAINTAIN, STOP.
+High P_fail or low RUL should strongly favor STOP or MAINTAIN.
+Uncertainty should lead toward INSPECT over CONTINUE.
+
+Respond in JSON: {{"action": "...", "confidence": 0.0, "reasoning": "..."}}

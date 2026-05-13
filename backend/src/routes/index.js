@@ -6,7 +6,7 @@ const decisionRoute = require('./v1/decision.route');
 
 router.use('/v1', v1Routes);
 
-// Alias /api/bearings to v1 bearing route
+// Alias /api/bearings and /api/decisions to v1 routes
 router.use('/bearings', bearingRoute);
 router.use('/decisions', decisionRoute);
 
