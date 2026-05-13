@@ -126,6 +126,11 @@ async def consume_loop(
                 await consumer.commit()
             except Exception as e:
                 logger.error(f"Error handling message from {topic}: {e}")
+                # Do NOT commit — re-raise so the offset stays un-committed.
+                # The message will be redelivered after the consumer restarts,
+                # giving the handler a chance to retry.  Callers that want
+                # at-most-once semantics should catch inside their own handler.
+                raise
     finally:
         await consumer.stop()
         logger.info(f"Consumer stopped: topic={topic}, group={group_id}")

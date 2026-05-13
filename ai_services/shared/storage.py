@@ -80,7 +80,11 @@ async def download_signal(bearing_id: str, file_idx: int) -> Optional[np.ndarray
         client = get_client()
         try:
             response = client.get_object(settings.MINIO_BUCKET_RAW_SIGNALS, key)
-            return response.read()
+            try:
+                return response.read()
+            finally:
+                response.close()
+                response.release_conn()
         except S3Error as e:
             if e.code == "NoSuchKey":
                 return None
@@ -129,7 +133,11 @@ async def download_features(bearing_id: str, file_idx: int) -> Optional[np.ndarr
         client = get_client()
         try:
             response = client.get_object(settings.MINIO_BUCKET_RAW_SIGNALS, key)
-            return response.read()
+            try:
+                return response.read()
+            finally:
+                response.close()
+                response.release_conn()
         except S3Error as e:
             if e.code == "NoSuchKey":
                 return None

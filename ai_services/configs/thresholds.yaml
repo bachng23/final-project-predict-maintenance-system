@@ -1,16 +1,25 @@
 anomaly:
-  p_fail_critical: 0.70
+  tau: 0.55
+  K_consecutive: 3
+  cooldown_cycles: 5
+  delta_escalation: 0.15
+  p_fail_critical: 0.7
   p_fail_high: 0.45
   hybrid_score_min: 0.55
-
   health_score_low: 35.0
   rul_critical_min: 60.0
-
+healthy_baseline:
+  rms_mean: 0.8144120304709296
+  rms_std: 0.24249852229469515
+  kurt_mean: 3.4939717668475527
+  kurt_std: 0.33475277132776676
 negotiation:
   max_round: 2
-  safety_veto_threshold: 0.80
-
+  safety_veto_threshold: 0.8
 priority:
-  critical_p_fail: 0.70
+  critical_p_fail: 0.7
   high_p_fail: 0.45
-  medium_p_fail: 0.20
+  medium_p_fail: 0.2
+safety:
+  vibration_redline_g: 20.0
+  crest_factor_redline: 6.0

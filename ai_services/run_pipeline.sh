@@ -70,7 +70,8 @@ uv run python -m ingestion.producer_runner \
   --bearing "$BEARING" \
   --speed "$SPEED" \
   --start "$START" &
-PIDS+=($!)
+PRODUCER_PID=$!
+PIDS+=("$PRODUCER_PID")
 
 # Tail all logs to terminal so output is visible
 tail -f \
@@ -80,4 +81,4 @@ tail -f \
 PIDS+=($!)
 
 # Wait for producer to finish (or Ctrl+C)
-wait "${PIDS[2]}" 2>/dev/null || true
+wait "$PRODUCER_PID" 2>/dev/null || true

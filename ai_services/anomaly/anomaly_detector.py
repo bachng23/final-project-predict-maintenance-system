@@ -69,6 +69,7 @@ class BearingState:
     def __init__(self, bearing_id: str, cfg: AnomalyConfig):
         self.bearing_id = bearing_id
         self.cfg = cfg
+        self.last_file_idx: int = 0
         self._consecutive: int = 0
         self._cooldown_remaining: int = 0
         self._last_score_in_cooldown: float = 0.0
@@ -171,6 +172,16 @@ class AnomalyDetector:
         rms:         float,
         rul_minutes: float,
     ) -> Optional[TriggerInfo]:
+        state = self._states.get(bearing_id)
+        if state is not None and file_idx <= state.last_file_idx:
+            log.info(
+                "[%s] Resetting anomaly state for replay/reused bearing_id: file_idx %d after %d",
+                bearing_id,
+                file_idx,
+                state.last_file_idx,
+            )
+            self._states[bearing_id] = BearingState(bearing_id, self.cfg)
+        self._state(bearing_id).last_file_idx = file_idx
         return self._state(bearing_id).update(file_idx, p_fail, rms, rul_minutes)
 
     def compute_score(

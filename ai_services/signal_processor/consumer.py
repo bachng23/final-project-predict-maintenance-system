@@ -83,6 +83,8 @@ async def handle_vibration_message(raw: bytes) -> None:
                   else datetime.fromisoformat(str(msg.sample_ts)).replace(tzinfo=timezone.utc),
         lifetime_pct=lifetime_pct,
         features=features,
+        signal_window_ref=msg.signal_window_ref,   # propagated from ingestion
+        feature_vector_ref=feature_vector_ref,     # just uploaded above
     )
     await publish_feature(record)
 
