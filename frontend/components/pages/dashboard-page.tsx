@@ -4,12 +4,12 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, Thermometer, Waves } from "lucide-react";
 
-
 import { AppShell } from "@/components/app-shell";
+import { BearingTimeseriesChart } from "@/components/charts/bearing-timeseries-chart";
 import { D3Gauge } from "@/components/charts/d3-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
+import { type BearingStatus, type DashboardData, type TelemetryPoint, fetchBearingPredictions, fetchDashboard } from "@/lib/backend-api";
 import { cn } from "@/lib/utils";
 
 function compactNumber(value: number, suffix = "") {
@@ -27,15 +27,40 @@ function statusLabel(status: BearingStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+const EMPTY_DASHBOARD: DashboardData = {
+  generatedAt: "",
+  totals: { bearings: 0, normal: 0, warning: 0, critical: 0, offline: 0 },
+  avgHealthScore: 0,
+  avgFailureProbability: 0,
+  avgRul: 0,
+  activeAlerts: 0,
+  bearings: [],
+  source: "backend",
+};
+
 export function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD);
+  const [priorityHistory, setPriorityHistory] = useState<TelemetryPoint[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+
+    const load = async () => {
+      try {
+        setError(null);
+        const dashboard = await fetchDashboard(controller.signal);
+        setData(dashboard);
+      } catch (caught) {
+        if ((caught as Error)?.name === "AbortError") return;
+        setError(caught instanceof Error ? caught.message : "Unable to load dashboard data.");
+      }
+    };
+
+    load();
 
     const timer = window.setInterval(() => {
-      fetchDashboard(controller.signal).then(setData).catch(() => undefined);
+      load();
     }, 30000);
 
     return () => {
@@ -49,10 +74,30 @@ export function DashboardPage() {
     [data],
   );
 
+  useEffect(() => {
+    if (!mostCritical) {
+      setPriorityHistory([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    fetchBearingPredictions(mostCritical.apiId, mostCritical, controller.signal, 36)
+      .then(setPriorityHistory)
+      .catch(() => setPriorityHistory([]));
+
+    return () => controller.abort();
+    // mostCritical object ref changes every poll even for the same bearing;
+    // depend on apiId to only re-fetch when the priority bearing actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostCritical?.apiId]);
+
   return (
     <AppShell title="Dashboard Overview">
       <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
-        {/* Hero banner */}
+        {error ? (
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>
+        ) : null}
+
         <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
           <div className="rounded-lg border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -92,7 +137,50 @@ export function DashboardPage() {
           </Card>
         </section>
 
-        {/* KPI cards */}
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Priority Bearing Trend</CardTitle>
+              <CardDescription>
+                Recent backend prediction history for {mostCritical?.name ?? "the highest-risk bearing"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BearingTimeseriesChart
+                emptyMessage="No prediction history available yet for the current priority bearing."
+                points={priorityHistory}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Fleet Pulse</CardTitle>
+              <CardDescription>Current operating envelope across all active bearings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(data?.bearings ?? []).slice(0, 5).map((bearing) => (
+                <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4" key={bearing.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{bearing.name}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {bearing.id} · {bearing.assetName}
+                      </p>
+                    </div>
+                    <Badge variant={statusVariant(bearing.status)}>{statusLabel(bearing.status)}</Badge>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                    <MiniStat label="Health" value={`${Math.round(bearing.healthScore)}%`} />
+                    <MiniStat label="P(fail)" value={`${Math.round(bearing.failureProbability)}%`} />
+                    <MiniStat label="RUL" value={`${Math.round(bearing.rul)}h`} />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+
         <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={<Gauge className="h-5 w-5" />}
@@ -111,20 +199,19 @@ export function DashboardPage() {
           <MetricCard
             icon={<Thermometer className="h-5 w-5" />}
             label="Hottest Bearing"
-            value={compactNumber(Math.max(...(data?.bearings.map((b) => b.temperature) ?? [0])), "°C")}
+            value={compactNumber(Math.max(...(data?.bearings.map((bearing) => bearing.temperature) ?? [0])), "°C")}
             subtext={mostCritical?.assetName ?? "Waiting for data"}
             tone="amber"
           />
           <MetricCard
             icon={<Waves className="h-5 w-5" />}
             label="Peak Vibration"
-            value={`${Math.max(...(data?.bearings.map((b) => b.vibration) ?? [0])).toFixed(1)} mm/s`}
+            value={`${Math.max(...(data?.bearings.map((bearing) => bearing.vibration) ?? [0])).toFixed(1)} mm/s`}
             subtext="RMS velocity"
             tone="emerald"
           />
         </section>
 
-        {/* Watchlist + priority bearing */}
         <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4">
