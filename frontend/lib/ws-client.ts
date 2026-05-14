@@ -5,7 +5,7 @@
 
 import { type Socket, io } from 'socket.io-client';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:5000';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? '';
 
 function makeSocket(namespace: string): Socket | null {
   if (typeof window === 'undefined') return null;

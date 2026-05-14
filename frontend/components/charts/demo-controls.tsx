@@ -18,7 +18,7 @@ interface Props {
   onStop?: () => void;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   const [bearings, setBearings] = useState<BearingOption[]>([]);
