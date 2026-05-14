@@ -72,10 +72,11 @@ type BackendEnvelope<T> = {
 };
 
 type OverviewResponse = {
-  summary?: unknown;
-  fleetTrend?: unknown;
-  bearings?: unknown;
+  summary?: Record<string, unknown>;
+  fleetTrend?: unknown[];
+  bearings?: unknown[];
 };
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 
 function endpoint(path: string) {
@@ -231,10 +232,10 @@ function normalizeFleetTelemetryPoint(value: unknown, index = 0): TelemetryPoint
       point.failureProbability ?? point.failure_probability ?? point.failure_prob ?? point.p_fail ?? point.risk,
       0,
     ),
-    rul: asHoursFromMinutes(
-      point.rul ?? point.rul_hours ?? point.rul_minutes ?? point.predictedFailureHours ?? point.remainingUsefulLife,
-      0,
-    ),
+    // rul_minutes needs unit conversion; rul_hours / predictedFailureHours are already in hours
+    rul: point.rul_minutes != null
+      ? asHoursFromMinutes(point.rul_minutes, 0)
+      : asNumber(point.rul ?? point.rul_hours ?? point.predictedFailureHours ?? point.remainingUsefulLife, 0),
     rpm: asNumber(point.rpm ?? point.speed, 0),
   };
 }
@@ -391,8 +392,8 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardDat
         generatedAt: new Date().toISOString(),
         totals,
         avgHealthScore: asNumber(summary.averageHealth, average(bearings.map((bearing) => bearing.healthScore))),
-        avgFailureProbability: average(bearings.map((bearing) => bearing.failureProbability)),
-        avgRul: average(bearings.map((bearing) => bearing.rul)),
+        avgFailureProbability: asNumber(summary.averageFailureProbability, average(bearings.map((bearing) => bearing.failureProbability))),
+        avgRul: asNumber(summary.averageRul, average(bearings.map((bearing) => bearing.rul))),
         activeAlerts: asNumber(summary.activeAlerts ?? summary.maintenanceDueSoon, totals.warning + totals.critical),
         bearings,
         telemetry,
