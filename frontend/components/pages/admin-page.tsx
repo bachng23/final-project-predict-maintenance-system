@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Search,
   ChevronDown,
@@ -459,8 +459,8 @@ export function AdminPage() {
             {filtered.map(u => {
               const isEditing = editingId === u.id;
               return (
-                <>
-                  <tr key={u.id} style={{
+                <React.Fragment key={u.id}>
+                  <tr style={{
                     borderBottom: "1px solid var(--color-stone-border)",
                     background: isEditing ? "var(--color-canvas-fog)" : undefined,
                   }}>
@@ -590,7 +590,7 @@ export function AdminPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>

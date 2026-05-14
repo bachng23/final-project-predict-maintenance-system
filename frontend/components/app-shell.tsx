@@ -42,7 +42,7 @@ const workspaceItems = [
 ];
 
 const systemsItems = [
-  { href: "/agents", label: "Agent Monitor", icon: Bot },
+  { href: "/agents", label: "Monitor", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

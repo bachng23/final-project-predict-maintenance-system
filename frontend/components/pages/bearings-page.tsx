@@ -253,7 +253,7 @@ export function BearingsPage() {
                       </td>
                       <td className="px-5 py-3">
                         <Link
-                          href={`/bearings/${encodeURIComponent(b.id)}`}
+                          href={`/agents?bearing=${encodeURIComponent(b.id)}`}
                           className="text-xs font-medium"
                           style={{ color: "var(--color-chartwell-blue)", whiteSpace: "nowrap" }}
                         >
@@ -327,7 +327,7 @@ function BearingCard({ bearing: b }: { bearing: BearingSummary }) {
 
       <div className="px-4 pb-4 pt-3">
         <Link
-          href={`/bearings/${encodeURIComponent(b.id)}`}
+          href={`/agents?bearing=${encodeURIComponent(b.id)}`}
           className="flex w-full items-center justify-center rounded-full py-1.5 text-[13px] font-medium transition-colors"
           style={{
             border: "1px solid var(--color-stone-border)",

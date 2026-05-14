@@ -1,6 +1,6 @@
-import { BearingDetailPage } from "@/components/pages/bearing-detail-page";
+import { redirect } from "next/navigation";
 
 export default async function BearingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <BearingDetailPage bearingId={decodeURIComponent(id)} />;
+  redirect(`/agents?bearing=${encodeURIComponent(decodeURIComponent(id))}`);
 }
