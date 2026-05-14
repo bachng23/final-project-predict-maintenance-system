@@ -27,8 +27,19 @@ function statusLabel(status: BearingStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+const EMPTY_DASHBOARD: DashboardData = {
+  generatedAt: "",
+  totals: { bearings: 0, normal: 0, warning: 0, critical: 0, offline: 0 },
+  avgHealthScore: 0,
+  avgFailureProbability: 0,
+  avgRul: 0,
+  activeAlerts: 0,
+  bearings: [],
+  source: "backend",
+};
+
 export function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD);
   const [priorityHistory, setPriorityHistory] = useState<TelemetryPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +52,7 @@ export function DashboardPage() {
         const dashboard = await fetchDashboard(controller.signal);
         setData(dashboard);
       } catch (caught) {
+        if ((caught as Error)?.name === "AbortError") return;
         setError(caught instanceof Error ? caught.message : "Unable to load dashboard data.");
       }
     };
@@ -74,7 +86,10 @@ export function DashboardPage() {
       .catch(() => setPriorityHistory([]));
 
     return () => controller.abort();
-  }, [mostCritical]);
+    // mostCritical object ref changes every poll even for the same bearing;
+    // depend on apiId to only re-fetch when the priority bearing actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostCritical?.apiId]);
 
   return (
     <AppShell title="Dashboard Overview">

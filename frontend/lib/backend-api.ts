@@ -210,8 +210,13 @@ function normalizePredictionPoint(value: unknown, bearing: BearingSummary, index
       point.rul ?? point.rul_hours ?? point.rul_minutes ?? point.remainingUsefulLife ?? point.remaining_useful_life,
       bearing.rul,
     ),
-    rulLower: asHoursFromMinutes(point.rul_lower_minutes ?? point.rulLowerMinutes ?? point.rul_lower, bearing.rul),
-    rulUpper: asHoursFromMinutes(point.rul_upper_minutes ?? point.rulUpperMinutes ?? point.rul_upper, bearing.rul),
+    // Fields with explicit minutes suffix need conversion; bare rul_lower/rul_upper assumed hours
+    rulLower: (point.rul_lower_minutes ?? point.rulLowerMinutes) != null
+      ? asHoursFromMinutes(point.rul_lower_minutes ?? point.rulLowerMinutes, bearing.rul)
+      : asNumber(point.rul_lower, bearing.rul),
+    rulUpper: (point.rul_upper_minutes ?? point.rulUpperMinutes) != null
+      ? asHoursFromMinutes(point.rul_upper_minutes ?? point.rulUpperMinutes, bearing.rul)
+      : asNumber(point.rul_upper, bearing.rul),
     rpm: asNumber(point.rpm ?? point.speed, bearing.rpm),
     faultType: asString(point.fault_type ?? point.faultType, ""),
   };
