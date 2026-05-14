@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { clearToken, hasToken } from "@/lib/auth";
+import { clearToken, getUserFromToken, hasToken, type TokenUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -46,11 +46,13 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<TokenUser | null>(null);
 
   useEffect(() => {
     if (!hasToken()) {
       router.replace("/login");
     } else {
+      setCurrentUser(getUserFromToken());
       setAuthChecked(true);
     }
   }, [router]);
@@ -158,7 +160,7 @@ export function AppShell({
               className="rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide"
               style={{ background: "var(--color-canvas-fog)", color: "var(--color-ash-gray)", border: "1px solid var(--color-stone-border)" }}
             >
-              OPERATOR
+              {currentUser?.role ?? "OPERATOR"}
             </span>
           </div>
           <button
