@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { clearToken, getUserFromToken, hasToken, type TokenUser } from "@/lib/auth";
+import { clearToken, getUserFromToken, hasToken, type TokenUser, authFetch, endpoint } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -35,7 +35,7 @@ const navItems = [
   { href: "/analytics", label: "Analytics", icon: Activity },
   { href: "/assets", label: "Assets", icon: Server },
   { href: "/bearings", label: "Bearings", icon: CircleDot },
-  { href: "/policy", label: "Decision Queue", icon: Inbox, badge: "8" },
+  { href: "/policy", label: "Decision Queue", icon: Inbox },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -52,6 +52,7 @@ export function AppShell({
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<TokenUser | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (!hasToken()) {
@@ -61,6 +62,30 @@ export function AppShell({
       setAuthChecked(true);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+
+    async function fetchCount() {
+      try {
+        const res = await authFetch(endpoint("/api/v1/decisions/pending"));
+        if (!res.ok) return;
+        const raw: unknown = await res.json();
+        const arr = Array.isArray(raw)
+          ? raw
+          : Array.isArray((raw as Record<string, unknown>)?.data)
+            ? (raw as Record<string, unknown>).data as unknown[]
+            : [];
+        setPendingCount((arr as unknown[]).length);
+      } catch {
+        // silently ignore — badge just won't show
+      }
+    }
+
+    fetchCount();
+    const id = setInterval(fetchCount, 30_000);
+    return () => clearInterval(id);
+  }, [authChecked]);
 
   if (!authChecked) return null;
 
@@ -133,12 +158,12 @@ export function AppShell({
                   style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
                 />
                 <span className="flex-1">{item.label}</span>
-                {item.badge && (
+                {item.href === "/policy" && pendingCount > 0 && (
                   <span
                     className="rounded-full px-1.5 py-px text-[11px] font-semibold leading-tight text-white"
                     style={{ background: "var(--color-rose)" }}
                   >
-                    {item.badge}
+                    {pendingCount}
                   </span>
                 )}
               </Link>
