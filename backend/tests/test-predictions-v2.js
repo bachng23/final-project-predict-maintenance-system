@@ -38,7 +38,7 @@ async function testPredictions() {
           console.log('Sample Point:', {
             sample_ts: json.data[0].sample_ts,
             health_score: json.data[0].health_score,
-            rul_hours: json.data[0].rul_hours,
+            rul_minutes: json.data[0].rul_minutes,
           });
         }
       });

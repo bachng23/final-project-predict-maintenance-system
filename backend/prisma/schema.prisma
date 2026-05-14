@@ -43,42 +43,29 @@ model Feature {
 }
 
 model Prediction {
-  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bearingId        String     @map("bearing_id") @db.Uuid
-  fileIdx          Int        @map("file_idx")
-  sampleTs         DateTime   @map("sample_ts") @db.Timestamptz(6)
-
-  // RUL — đơn vị minutes (giữ nguyên model output, không convert)
-  rulMinutes       Float      @map("rul_minutes")
-  rulLowerMinutes  Float?     @map("rul_lower_minutes")
-  rulUpperMinutes  Float?     @map("rul_upper_minutes")
-  rulUncertainty   Float?     @map("rul_uncertainty")   // raw score, vd. 0.019
-
-  // Core predictions
-  pFail            Float      @map("p_fail")
-  healthScore      Float      @map("health_score")       // [0, 100] = model × 100
-
-  // Extra model signals
-  degradationRate  Float?     @map("degradation_rate")
-  oodFlag          Boolean?   @map("ood_flag")
-
-  // Fault detection — tính bởi fault_detector.py
-  faultType        FaultType? @map("fault_type")
-  faultConfidence  Float?     @map("fault_confidence")
-
-  // Anomaly scores — anomaly service UPDATE sau khi predictor INSERT
-  statScore        Float?     @map("stat_score")
-  rulDropScore     Float?     @map("rul_drop_score")
-  hybridScore      Float?     @map("hybrid_score")
-  thresholdTau     Float?     @map("threshold_tau")
-
-  // Metadata
-  modelVersion     String     @map("model_version")
-  pipelineRunId    String?    @map("pipeline_run_id")
-  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  bearing          Bearing    @relation(fields: [bearingId], references: [id], onDelete: Restrict)
-  snapshots        Snapshot[]
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bearingId       String     @map("bearing_id") @db.Uuid
+  fileIdx         Int        @map("file_idx")
+  sampleTs        DateTime   @map("sample_ts") @db.Timestamptz(6)
+  rulMinutes      Float      @map("rul_minutes")
+  rulLowerMinutes Float?     @map("rul_lower_minutes")
+  rulUpperMinutes Float?     @map("rul_upper_minutes")
+  rulUncertainty  Float?     @map("rul_uncertainty")
+  pFail           Float      @map("p_fail")
+  healthScore     Float      @map("health_score")
+  degradationRate Float?     @map("degradation_rate")
+  oodFlag         Boolean?   @map("ood_flag")
+  faultType       FaultType? @map("fault_type")
+  faultConfidence Float?     @map("fault_confidence")
+  statScore       Float?     @map("stat_score")
+  rulDropScore    Float?     @map("rul_drop_score")
+  hybridScore     Float?     @map("hybrid_score")
+  thresholdTau    Float?     @map("threshold_tau")
+  modelVersion    String     @map("model_version")
+  pipelineRunId   String?    @map("pipeline_run_id")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  bearing         Bearing    @relation(fields: [bearingId], references: [id], onDelete: Restrict)
+  snapshots       Snapshot[]
 
   @@unique([bearingId, fileIdx, modelVersion])
   @@index([bearingId, fileIdx(sort: Desc)])
@@ -119,7 +106,7 @@ model Decision {
   reasonSummary         String?              @map("reason_summary")
   openedAt              DateTime             @default(now()) @map("opened_at") @db.Timestamptz(6)
   resolvedAt            DateTime?            @map("resolved_at") @db.Timestamptz(6)
-  version               Int                  @default(1)
+  version               Int                  @default(0)
   createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   decisionActions       DecisionAction[]
@@ -139,7 +126,7 @@ model DecisionAction {
   actorUserId    String         @map("actor_user_id") @db.Uuid
   actorRole      String         @map("actor_role")
   submittedAt    DateTime       @default(now()) @map("submitted_at") @db.Timestamptz(6)
-  source         ActionSource   @map("source")
+  source         ActionSource
   actor          User           @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
   decision       Decision       @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
@@ -167,7 +154,7 @@ model AgentTranscript {
   agentName       String           @map("agent_name")
   messageType     AgentMessageType @map("message_type")
   actionCandidate ActionType?      @map("action_candidate")
-  confidence      Float?           @map("confidence")
+  confidence      Float?
   reasoningText   String           @map("reasoning_text")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   snapshot        Snapshot         @relation(fields: [snapshotId], references: [id], onDelete: Restrict)

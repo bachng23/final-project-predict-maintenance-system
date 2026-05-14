@@ -31,9 +31,9 @@ async function checkAPI() {
           console.log('First bearing payload:');
           console.log(`   - ID: ${bearing.bearing_id}`);
           console.log(`   - Status: ${bearing.status}`);
-          console.log(`   - RUL (Hours): ${bearing.rul_hours}`);
+          console.log(`   - RUL (Minutes): ${bearing.rul_minutes}`);
 
-          const required = ['bearing_id', 'status', 'health_score', 'rul_hours'];
+          const required = ['bearing_id', 'status', 'health_score', 'rul_minutes'];
           const missing = required.filter((field) => !(field in bearing));
 
           if (missing.length === 0) {
