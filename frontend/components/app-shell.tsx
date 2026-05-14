@@ -13,6 +13,7 @@ import {
   CircleDot,
   Inbox,
   Brain,
+  Users,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,10 @@ const navItems = [
   { href: "/bearings", label: "Bearings", icon: CircleDot },
   { href: "/policy", label: "Decision Queue", icon: Inbox, badge: "8" },
   { href: "/settings", label: "Settings", icon: Settings },
+];
+
+const adminNavItems = [
+  { href: "/admin", label: "User Management", icon: Users },
 ];
 
 export function AppShell({
@@ -140,6 +145,43 @@ export function AppShell({
             );
           })}
         </nav>
+
+        {/* Admin nav — only for ADMIN role */}
+        {currentUser?.role === "ADMIN" && (
+          <div style={{ borderTop: "1px solid var(--color-stone-border)", paddingTop: 12, marginTop: 4 }}>
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-widest"
+              style={{ color: "var(--color-steel-gray)", margin: 0 }}>
+              Admin
+            </p>
+            {adminNavItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                  style={{
+                    background: active ? "var(--color-sky-tint)" : "transparent",
+                    color: active ? "var(--color-slate-text)" : "var(--color-ash-gray)",
+                  }}
+                >
+                  {active && (
+                    <span
+                      className="absolute -left-3 bottom-1.5 top-1.5 w-0.5 rounded-r"
+                      style={{ background: "var(--color-chartwell-blue)" }}
+                    />
+                  )}
+                  <Icon
+                    className="h-4 w-4 shrink-0"
+                    style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
+                  />
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         {/* User footer */}
         <div
