@@ -22,7 +22,7 @@ type FeedItem = {
 
 // ── Synthetic data ────────────────────────────────────────────────────────────
 
-const TOTAL_CYCLES = 400;
+const TOTAL_CYCLES = 160;
 const ANOMALY_THRESHOLD = 0.70;
 
 function generateTimeline(total: number, seed = 42): Cycle[] {
@@ -607,20 +607,6 @@ export function AgentsPage() {
                   </span>
                   <div style={{ fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: "var(--color-ash-gray)", fontWeight: 600 }}>Status</div>
                 </div>
-              </div>
-              {/* Playback bar */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderTop: "1px solid var(--color-stone-border)", background: "var(--color-canvas-fog)", flexShrink: 0 }}>
-                <button onClick={() => setPlaying(p => !p)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px", background: "var(--color-cloud-white)", border: "1px solid var(--color-stone-border)", borderRadius: 9999, fontSize: 12, fontWeight: 500, color: "var(--color-slate-text)", cursor: "pointer", fontFamily: "inherit" }}>
-                  {playing
-                    ? <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-                    : <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z" /></svg>
-                  }
-                  {playing ? "Pause" : "Play"}
-                </button>
-                <div style={{ flex: 1, height: 4, background: "var(--color-stone-border)", borderRadius: 9999, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(cursor / (N - 1)) * 100}%`, background: "var(--color-chartwell-blue)", borderRadius: 9999, transition: "width 0.25s ease" }} />
-                </div>
-                <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--color-ash-gray)", whiteSpace: "nowrap" }}>{cursor + 1}/{N}</span>
               </div>
             </div>
           )}
