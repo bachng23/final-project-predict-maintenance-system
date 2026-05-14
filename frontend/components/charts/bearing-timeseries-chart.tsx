@@ -77,11 +77,11 @@ export function BearingTimeseriesChart({
         />
         <Tooltip
           contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, color: "#e2e8f0" }}
-          formatter={(value: number | string, name: string) => {
-            const number = Number(value);
-            if (name === "Health Score" || name === "Failure Probability") return [`${number.toFixed(1)}%`, name];
-            if (name === "RUL") return [`${number.toFixed(1)} hr`, name];
-            return [value, name];
+          formatter={(value, name) => {
+            const number = Number(value ?? 0);
+            if (name === "Health Score" || name === "Failure Probability") return [`${number.toFixed(1)}%`, name as string];
+            if (name === "RUL") return [`${number.toFixed(1)} hr`, name as string];
+            return [String(value ?? ""), name as string];
           }}
           labelFormatter={(label) => formatTooltipLabel(String(label))}
         />
