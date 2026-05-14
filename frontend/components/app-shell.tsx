@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   Bell,
+  LogOut,
   LayoutDashboard,
   Search,
   Settings,
@@ -13,7 +14,9 @@ import {
   Inbox,
   Brain,
 } from "lucide-react";
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { clearToken, hasToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -41,6 +44,19 @@ export function AppShell({
   searchPlaceholder = "Search...",
 }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!hasToken()) {
+      router.replace("/login");
+    }
+  }, [router]);
+
+  function handleLogout() {
+    clearToken();
+    router.replace("/login");
+    router.refresh();
+  }
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
@@ -140,6 +156,16 @@ export function AppShell({
               OPERATOR
             </span>
           </div>
+          <button
+            aria-label="Log out"
+            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-canvas-fog)]"
+            onClick={handleLogout}
+            style={{ border: "1px solid var(--color-stone-border)", color: "var(--color-ash-gray)" }}
+            type="button"
+            title="Log out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </aside>
 

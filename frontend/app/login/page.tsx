@@ -1,8 +1,26 @@
-import { LoginPage } from "@/components/pages/login-page";
+"use client";
 
-export const metadata = { title: "Sign in — Marco.ai" };
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+import { LoginPage } from "@/components/pages/login-page";
+import { hasToken, login } from "@/lib/auth";
 
 export default function Page() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (hasToken()) {
+      router.replace("/");
+    }
+  }, [router]);
+
+  async function handleSubmit(username: string, password: string) {
+    await login(username, password);
+    router.replace("/");
+    router.refresh();
+  }
+
   return (
     <main
       style={{
@@ -17,7 +35,7 @@ export default function Page() {
         overflow: "hidden",
       }}
     >
-      <LoginPage />
+      <LoginPage onSubmit={handleSubmit} />
     </main>
   );
 }
