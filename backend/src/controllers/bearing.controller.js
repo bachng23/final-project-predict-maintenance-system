@@ -27,8 +27,13 @@ const getBearingPredictions = async (req, res, next) => {
     const { id } = req.params;
     const { limit, start_date, end_date } = req.query;
 
+    const parsedLimit = parseInt(limit);
+    const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, 1000)
+      : 100;
+
     const predictions = await bearingService.getPredictionsByBearingId(id, {
-      limit: parseInt(limit) || 100,
+      limit: safeLimit,
       startDate: start_date,
       endDate: end_date
     });

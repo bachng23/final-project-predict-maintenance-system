@@ -14,7 +14,8 @@ const jwt = require('jsonwebtoken');
 const connectionManager = require('./connection.manager');
 
 let io = null;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required');
 
 // ---------------------------------------------------------------------------
 // Kafka consumer helpers
@@ -151,9 +152,17 @@ function setupNamespaces() {
 // ---------------------------------------------------------------------------
 
 async function initWS(httpServer) {
+  const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || '*',
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Not allowed by CORS'));
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },

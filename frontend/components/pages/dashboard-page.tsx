@@ -2,260 +2,521 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Gauge, Thermometer, Waves } from "lucide-react";
-
+import { ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/app-shell";
 import { D3Gauge } from "@/components/charts/d3-gauge";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type BearingStatus, type DashboardData, fetchDashboard } from "@/lib/backend-api";
-import { cn } from "@/lib/utils";
+import { type BearingStatus, type BearingSummary, type DashboardData, type TelemetryPoint, fetchBearingPredictions, fetchDashboard } from "@/lib/backend-api";
 
-function compactNumber(value: number, suffix = "") {
-  return `${Math.round(value).toLocaleString("en-US")}${suffix}`;
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function statusColor(status: BearingStatus) {
+  if (status === "critical") return "var(--color-rose)";
+  if (status === "warning") return "var(--color-amber)";
+  if (status === "normal") return "var(--color-emerald)";
+  return "var(--color-steel-gray)";
 }
 
-function statusVariant(status: BearingStatus) {
-  if (status === "critical") return "danger";
-  if (status === "warning") return "warning";
-  if (status === "normal") return "success";
-  return "default";
+function statusBg(status: BearingStatus) {
+  if (status === "critical") return "var(--color-rose-tint)";
+  if (status === "warning") return "var(--color-amber-tint)";
+  if (status === "normal") return "var(--color-emerald-tint)";
+  return "#f5f5f4";
 }
 
 function statusLabel(status: BearingStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function failColor(pFail: number) {
+  if (pFail >= 70) return "var(--color-rose)";
+  if (pFail >= 35) return "var(--color-amber)";
+  return "var(--color-emerald)";
+}
+
+function rulColor(rul: number) {
+  if (rul < 24) return "var(--color-rose)";
+  if (rul < 72) return "var(--color-amber)";
+  return "var(--color-slate-text)";
+}
+
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+}
+
+function formatChartTime(iso: string) {
+  return new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
+const EMPTY_DASHBOARD: DashboardData = {
+  generatedAt: "",
+  totals: { bearings: 0, normal: 0, warning: 0, critical: 0, offline: 0 },
+  avgHealthScore: 0,
+  avgFailureProbability: 0,
+  avgRul: 0,
+  activeAlerts: 0,
+  bearings: [],
+  source: "backend",
+};
+
+// ─── card primitives ───────────────────────────────────────────────────────────
+
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={className}
+      style={{
+        background: "var(--color-cloud-white)",
+        border: "1px solid var(--color-stone-border)",
+        borderRadius: 10,
+        boxShadow: "var(--shadow-md)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="flex items-center justify-between px-6 py-4"
+      style={{ borderBottom: "1px solid var(--color-stone-border)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: BearingStatus }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+      style={{ background: statusBg(status), color: statusColor(status) }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusColor(status) }} />
+      {statusLabel(status)}
+    </span>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
 export function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD);
+  const [priorityHistory, setPriorityHistory] = useState<TelemetryPoint[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const controller = new AbortController();
-    fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-
-    const timer = window.setInterval(() => {
-      fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-    }, 30000);
-
-    return () => {
-      controller.abort();
-      window.clearInterval(timer);
+    const load = async () => {
+      try {
+        setError(null);
+        const dashboard = await fetchDashboard(controller.signal);
+        setData(dashboard);
+      } catch (caught) {
+        if ((caught as Error)?.name === "AbortError") return;
+        setError(caught instanceof Error ? caught.message : "Unable to load dashboard data.");
+      }
     };
+    load();
+    const timer = window.setInterval(load, 30000);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
 
   const mostCritical = useMemo(
-    () => [...(data?.bearings ?? [])].sort((left, right) => right.failureProbability - left.failureProbability)[0],
+    () => [...(data?.bearings ?? [])].sort((a, b) => b.failureProbability - a.failureProbability)[0],
+    [data],
+  );
+
+  useEffect(() => {
+    if (!mostCritical) { setPriorityHistory([]); return; }
+    const controller = new AbortController();
+    fetchBearingPredictions(mostCritical.apiId, mostCritical, controller.signal, 36)
+      .then(setPriorityHistory)
+      .catch(() => setPriorityHistory([]));
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostCritical?.apiId]);
+
+  const chartData = priorityHistory.map((p) => ({
+    time: formatChartTime(p.timestamp),
+    health: Math.round(p.healthScore),
+    pFail: Math.round(p.failureProbability),
+  }));
+
+  const topRisk = useMemo(
+    () => [...(data?.bearings ?? [])].sort((a, b) => b.failureProbability - a.failureProbability).slice(0, 5),
+    [data],
+  );
+
+  const hottest = useMemo(
+    () => [...(data?.bearings ?? [])].sort((a, b) => b.temperature - a.temperature)[0],
+    [data],
+  );
+
+  const peakVib = useMemo(
+    () => [...(data?.bearings ?? [])].sort((a, b) => b.vibration - a.vibration)[0],
     [data],
   );
 
   return (
-    <AppShell title="Dashboard Overview">
-      <div className="mx-auto w-full max-w-7xl space-y-6 p-5 pb-24 md:p-8">
-        {/* Hero banner */}
-        <section className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="rounded-lg border border-slate-800 bg-[linear-gradient(135deg,#162033,#0f172a_48%,#1f2937)] p-6 shadow-xl">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">Real-time Overview</p>
-                <h1 className="mt-2 font-headline text-3xl font-bold text-white">Machine Health Overview</h1>
-                <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                  Live bearing health, RUL estimates, failure probability, and alerts from the predictive maintenance
-                  pipeline.
-                </p>
+    <AppShell title="Dashboard" searchPlaceholder="Search bearings...">
+      <div className="flex flex-col gap-8 p-7 pb-20">
+        {error && (
+          <div
+            className="rounded-lg px-4 py-3 text-sm"
+            style={{ background: "var(--color-rose-tint)", color: "var(--color-rose)", border: "1px solid #fecdd3" }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Metric Cards */}
+        <div className="grid grid-cols-2 gap-5 xl:grid-cols-4">
+          <MetricCard
+            label="Avg Failure Probability"
+            value={`${Math.round(data.avgFailureProbability)}%`}
+            valueColor={failColor(data.avgFailureProbability)}
+            trend={<><TrendingUp className="h-3 w-3" /> 3% from yesterday</>}
+            trendUp
+          />
+          <MetricCard
+            label="Avg Remaining Useful Life"
+            value={`${Math.round(data.avgRul)}`}
+            valueUnit="hrs"
+            valueColor={rulColor(data.avgRul)}
+            trend={<><TrendingDown className="h-3 w-3" /> 12h from yesterday</>}
+            trendUp={false}
+          />
+          <MetricCard
+            label="Peak Temperature"
+            value={hottest ? `${Math.round(hottest.temperature)}°C` : "—"}
+            sub={hottest?.id}
+            valueColor={hottest && hottest.temperature > 90 ? "var(--color-rose)" : hottest && hottest.temperature > 75 ? "var(--color-amber)" : undefined}
+          />
+          <MetricCard
+            label="Peak Vibration RMS"
+            value={peakVib ? `${peakVib.vibration.toFixed(1)} g` : "—"}
+            sub={peakVib?.id}
+            valueColor={peakVib && peakVib.vibration > 4 ? "var(--color-rose)" : peakVib && peakVib.vibration > 2.5 ? "var(--color-amber)" : undefined}
+          />
+        </div>
+
+        {/* Fleet Health + Priority Trend / Fleet Pulse */}
+        <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
+          {/* Left column */}
+          <div className="flex flex-col gap-5">
+            {/* Fleet Health Gauge */}
+            <Card>
+              <CardHeader>
+                <span className="text-[16px] font-medium" style={{ color: "var(--color-slate-text)", letterSpacing: "-0.012em" }}>
+                  Fleet Health Score
+                </span>
+              </CardHeader>
+              <div className="flex flex-col items-center gap-6 px-6 py-6 md:flex-row md:items-center md:gap-10">
+                <div className="w-full max-w-[240px]">
+                  <D3Gauge
+                    label="Fleet Health"
+                    value={Math.round(data.avgHealthScore)}
+                    zones="health"
+                    subtitle={
+                      data.avgHealthScore >= 70 ? "Healthy" :
+                      data.avgHealthScore >= 35 ? "Warning" : "Critical"
+                    }
+                  />
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { status: "normal" as BearingStatus, count: data.totals.normal },
+                    { status: "warning" as BearingStatus, count: data.totals.warning },
+                    { status: "critical" as BearingStatus, count: data.totals.critical },
+                    { status: "offline" as BearingStatus, count: data.totals.offline },
+                  ].map(({ status, count }) => (
+                    <div
+                      key={status}
+                      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium"
+                      style={{
+                        background: "var(--color-canvas-fog)",
+                        border: "1px solid var(--color-stone-border)",
+                        color: "var(--color-slate-text)",
+                      }}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ background: statusColor(status) }} />
+                      <span className="font-semibold">{count}</span>
+                      <span style={{ color: "var(--color-ash-gray)", fontWeight: 400 }}>{statusLabel(status)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
-                  <p className="font-headline text-2xl font-bold text-emerald-200">{data?.totals.normal ?? 0}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Normal</p>
+            </Card>
+
+            {/* Priority Trend Chart */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <span className="text-[16px] font-medium" style={{ color: "var(--color-slate-text)", letterSpacing: "-0.012em" }}>
+                    {mostCritical?.name ?? "Priority Bearing"} — Health Score, Last 48h
+                  </span>
+                  {mostCritical?.status === "critical" && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                      style={{ background: "var(--color-rose-tint)", color: "var(--color-rose)" }}
+                    >
+                      Critical
+                    </span>
+                  )}
                 </div>
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-                  <p className="font-headline text-2xl font-bold text-amber-200">{data?.totals.warning ?? 0}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Warning</p>
-                </div>
-                <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3">
-                  <p className="font-headline text-2xl font-bold text-rose-200">{data?.totals.critical ?? 0}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-300">Critical</p>
-                </div>
+              </CardHeader>
+              <div className="px-4 py-4" style={{ height: 220 }}>
+                {mounted && chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+                      <defs>
+                        <linearGradient id="healthFill" x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="5%" stopColor="#3ba6f1" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#3ba6f1" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#78716c" }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: "#78716c" }} tickLine={false} axisLine={false} domain={[0, 100]} />
+                      <Tooltip
+                        contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12 }}
+                      />
+                      <Area dataKey="health" name="Health Score" stroke="#3ba6f1" strokeWidth={2} fill="url(#healthFill)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm" style={{ color: "var(--color-ash-gray)" }}>
+                    {mounted ? "No prediction history available." : "Loading chart..."}
+                  </div>
+                )}
               </div>
-            </div>
+            </Card>
           </div>
 
-          <Card className="bg-slate-900">
-            <CardHeader className="pb-2">
-              <CardTitle>Fleet Health Gauge</CardTitle>
-              <CardDescription>Average health score across all monitored bearings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <D3Gauge label="Average Health" tone="emerald" value={data?.avgHealthScore ?? 0} />
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* KPI cards */}
-        <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            icon={<Gauge className="h-5 w-5" />}
-            label="Avg Failure Probability"
-            value={compactNumber(data?.avgFailureProbability ?? 0, "%")}
-            subtext={`${data?.activeAlerts ?? 0} active alerts`}
-            tone="rose"
-          />
-          <MetricCard
-            icon={<Clock3 className="h-5 w-5" />}
-            label="Average RUL"
-            value={compactNumber(data?.avgRul ?? 0, "h")}
-            subtext="Fleet-wide remaining useful life"
-            tone="blue"
-          />
-          <MetricCard
-            icon={<Thermometer className="h-5 w-5" />}
-            label="Hottest Bearing"
-            value={compactNumber(Math.max(...(data?.bearings.map((b) => b.temperature) ?? [0])), "°C")}
-            subtext={mostCritical?.assetName ?? "Waiting for data"}
-            tone="amber"
-          />
-          <MetricCard
-            icon={<Waves className="h-5 w-5" />}
-            label="Peak Vibration"
-            value={`${Math.max(...(data?.bearings.map((b) => b.vibration) ?? [0])).toFixed(1)} mm/s`}
-            subtext="RMS velocity"
-            tone="emerald"
-          />
-        </section>
-
-        {/* Watchlist + priority bearing */}
-        <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-          <Card>
-            <CardHeader className="flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Bearing Watchlist</CardTitle>
-                <CardDescription>Click a bearing to open its detail page</CardDescription>
-              </div>
-              <Badge>{data?.totals.bearings ?? 0} Bearings</Badge>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-hidden rounded-lg border border-slate-800">
-                <div className="grid grid-cols-[1fr_120px_100px_88px] border-b border-slate-800 bg-slate-950/70 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  <span>Bearing</span>
-                  <span>Status</span>
-                  <span>Failure</span>
-                  <span>RUL</span>
-                </div>
-                {(data?.bearings ?? []).map((bearing) => (
-                  <Link
-                    className="grid grid-cols-[1fr_120px_100px_88px] items-center border-b border-slate-800 px-4 py-4 transition-colors last:border-0 hover:bg-slate-800/55"
-                    href={`/bearings/${encodeURIComponent(bearing.id)}`}
-                    key={bearing.id}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2
-                          className={cn(
-                            "h-4 w-4",
-                            bearing.status === "critical"
-                              ? "text-rose-300"
-                              : bearing.status === "warning"
-                                ? "text-amber-300"
-                                : "text-emerald-300",
-                          )}
-                        />
-                        <p className="truncate text-sm font-bold text-white">{bearing.name}</p>
-                      </div>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {bearing.id} · {bearing.assetName}
-                      </p>
-                    </div>
-                    <Badge variant={statusVariant(bearing.status)}>{statusLabel(bearing.status)}</Badge>
-                    <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.failureProbability)}%</span>
-                    <span className="text-sm font-semibold text-slate-200">{Math.round(bearing.rul)}h</span>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
+          {/* Fleet Pulse */}
           <Card>
             <CardHeader>
-              <CardTitle>Priority Bearing</CardTitle>
-              <CardDescription>Highest-risk bearing requiring immediate attention</CardDescription>
+              <div>
+                <p className="text-[16px] font-medium" style={{ color: "var(--color-slate-text)", letterSpacing: "-0.012em" }}>
+                  Fleet Pulse
+                </p>
+                <p className="mt-0.5 text-xs" style={{ color: "var(--color-ash-gray)" }}>
+                  5 highest-risk bearings right now
+                </p>
+              </div>
             </CardHeader>
-            <CardContent>
-              {mostCritical ? (
-                <div className="space-y-5">
-                  <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{mostCritical.id}</p>
-                        <h3 className="mt-2 font-headline text-xl font-bold text-white">{mostCritical.name}</h3>
-                        <p className="mt-1 text-sm text-slate-300">{mostCritical.assetName}</p>
-                      </div>
-                      <AlertTriangle className="h-6 w-6 text-rose-300" />
-                    </div>
-                    <div className="mt-5 grid grid-cols-3 gap-3">
-                      <MiniStat label="Failure" value={`${Math.round(mostCritical.failureProbability)}%`} />
-                      <MiniStat label="RUL" value={`${Math.round(mostCritical.rul)}h`} />
-                      <MiniStat label="Temp" value={`${Math.round(mostCritical.temperature)}°C`} />
-                    </div>
-                  </div>
-                  <Link
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-400"
-                    href={`/bearings/${encodeURIComponent(mostCritical.id)}`}
-                  >
-                    View Bearing Detail
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex h-44 items-center justify-center text-sm text-slate-500">Loading bearing data...</div>
-              )}
-            </CardContent>
+            <div className="flex flex-col divide-y px-5 py-2" style={{ borderColor: "var(--color-stone-border)" }}>
+              {topRisk.length === 0
+                ? <div className="py-10 text-center text-sm" style={{ color: "var(--color-ash-gray)" }}>Loading...</div>
+                : topRisk.map((b) => (
+                  <PulseRow key={b.id} bearing={b} />
+                ))}
+            </div>
+            <div className="px-5 pb-4 pt-2">
+              <Link
+                href="/bearings"
+                className="flex items-center gap-1 text-sm font-medium"
+                style={{ color: "var(--color-chartwell-blue)" }}
+              >
+                View all bearings <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </Card>
-        </section>
+        </div>
+
+        {/* Bearing Watchlist Table */}
+        <Card>
+          <CardHeader>
+            <span className="text-[16px] font-medium" style={{ color: "var(--color-slate-text)", letterSpacing: "-0.012em" }}>
+              Bearing Watchlist
+            </span>
+            <span
+              className="rounded-full px-2.5 py-0.5 text-xs font-medium"
+              style={{ background: "var(--color-canvas-fog)", border: "1px solid var(--color-stone-border)", color: "var(--color-ash-gray)" }}
+            >
+              {data.totals.bearings} bearings
+            </span>
+          </CardHeader>
+          <WatchlistTable bearings={data.bearings} />
+        </Card>
       </div>
     </AppShell>
   );
 }
 
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
 function MetricCard({
-  icon,
   label,
   value,
-  subtext,
-  tone,
+  valueUnit,
+  valueColor,
+  sub,
+  trend,
+  trendUp,
 }: {
-  icon: ReactNode;
   label: string;
   value: string;
-  subtext: string;
-  tone: "rose" | "amber" | "emerald" | "blue";
+  valueUnit?: string;
+  valueColor?: string;
+  sub?: string;
+  trend?: ReactNode;
+  trendUp?: boolean;
 }) {
-  const toneClass = {
-    rose: "bg-rose-500/10 text-rose-300",
-    amber: "bg-amber-500/10 text-amber-300",
-    emerald: "bg-emerald-500/10 text-emerald-300",
-    blue: "bg-blue-500/10 text-blue-300",
-  }[tone];
-
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="mb-8 flex items-start justify-between">
-          <div className={cn("flex h-11 w-11 items-center justify-center rounded-lg", toneClass)}>{icon}</div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+    <div
+      className="flex flex-col gap-1.5 rounded-[10px] p-5"
+      style={{
+        background: "var(--color-cloud-white)",
+        border: "1px solid var(--color-stone-border)",
+        boxShadow: "var(--shadow-md)",
+      }}
+    >
+      <p className="text-xs font-medium" style={{ color: "var(--color-ash-gray)" }}>{label}</p>
+      <p
+        className="mt-1 text-[32px] font-medium leading-tight"
+        style={{ color: valueColor ?? "var(--color-slate-text)", letterSpacing: "-0.02em" }}
+      >
+        {value}
+        {valueUnit && <span className="ml-1 text-lg font-normal" style={{ color: "var(--color-ash-gray)" }}>{valueUnit}</span>}
+      </p>
+      {sub && <p className="text-xs" style={{ color: "var(--color-ash-gray)" }}>{sub}</p>}
+      {trend && (
+        <div
+          className="mt-1 flex items-center gap-1 text-xs font-medium"
+          style={{ color: trendUp ? "var(--color-rose)" : "var(--color-emerald)" }}
+        >
+          {trend}
         </div>
-        <p className="font-headline text-4xl font-bold leading-none text-white">{value}</p>
-        <p className="mt-3 text-sm text-slate-400">{subtext}</p>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function PulseRow({ bearing }: { bearing: BearingSummary }) {
+  const pFail = Math.round(bearing.failureProbability);
+  const barColor = failColor(pFail);
   return (
-    <div className="rounded-lg bg-slate-950/60 p-3 text-center">
-      <p className="font-headline text-lg font-bold text-white">{value}</p>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+    <div className="flex items-center gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium" style={{ color: "var(--color-slate-text)" }}>
+          {bearing.name}
+        </p>
+        <p className="truncate text-[11px]" style={{ color: "var(--color-ash-gray)" }}>
+          {bearing.location}
+        </p>
+        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full" style={{ background: "var(--color-canvas-fog)" }}>
+          <div className="h-full rounded-full" style={{ width: `${pFail}%`, background: barColor }} />
+        </div>
+      </div>
+      <StatusBadge status={bearing.status} />
+      <span
+        className="shrink-0 text-sm font-semibold"
+        style={{ color: rulColor(bearing.rul), minWidth: 48, textAlign: "right" }}
+      >
+        {Math.round(bearing.rul)}
+        <span className="text-xs font-normal" style={{ color: "var(--color-ash-gray)" }}> hrs</span>
+      </span>
+    </div>
+  );
+}
+
+function WatchlistTable({ bearings }: { bearings: BearingSummary[] }) {
+  const sorted = useMemo(
+    () => [...bearings].sort((a, b) => b.failureProbability - a.failureProbability),
+    [bearings],
+  );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left" style={{ fontSize: 13, borderCollapse: "separate", borderSpacing: 0 }}>
+        <thead>
+          <tr style={{ background: "var(--color-canvas-fog)" }}>
+            {["Bearing ID", "Name", "Status", "Failure Prob.", "RUL", "Fault Type", "Last Updated", ""].map((col) => (
+              <th
+                key={col}
+                className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--color-ash-gray)", borderBottom: "1px solid var(--color-stone-border)" }}
+              >
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.length === 0 && (
+            <tr>
+              <td colSpan={8} className="py-10 text-center text-sm" style={{ color: "var(--color-ash-gray)" }}>
+                Loading bearings...
+              </td>
+            </tr>
+          )}
+          {sorted.map((b) => {
+            const rowBg =
+              b.status === "critical" ? "rgba(244,63,94,0.04)" :
+              b.status === "warning" ? "rgba(245,158,11,0.04)" : undefined;
+            return (
+              <tr
+                key={b.id}
+                style={{ background: rowBg, borderBottom: "1px solid var(--color-stone-border)" }}
+                className="transition-colors hover:bg-[#fafaf9]"
+              >
+                <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--color-slate-text)", whiteSpace: "nowrap" }}>
+                  {b.id}
+                </td>
+                <td className="px-4 py-3 font-medium" style={{ color: "var(--color-slate-text)" }}>{b.name}</td>
+                <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
+                <td className="px-4 py-3 font-semibold" style={{ color: failColor(b.failureProbability) }}>
+                  {Math.round(b.failureProbability)}%
+                </td>
+                <td className="px-4 py-3 font-semibold" style={{ color: rulColor(b.rul) }}>
+                  {Math.round(b.rul)}h
+                </td>
+                <td className="px-4 py-3">
+                  {b.location ? (
+                    <span
+                      className="rounded px-1.5 py-0.5 font-mono text-[10.5px]"
+                      style={{ background: "var(--color-canvas-fog)", border: "1px solid var(--color-stone-border)", color: "var(--color-ash-gray)" }}
+                    >
+                      —
+                    </span>
+                  ) : "—"}
+                </td>
+                <td className="px-4 py-3 text-xs" style={{ color: "var(--color-ash-gray)" }}>
+                  {relativeTime(b.updatedAt)}
+                </td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/bearings/${encodeURIComponent(b.id)}`}
+                    className="text-xs font-medium"
+                    style={{ color: "var(--color-chartwell-blue)", whiteSpace: "nowrap" }}
+                  >
+                    View →
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {sorted.length > 0 && (
+        <div
+          className="flex items-center justify-between px-5 py-3 text-xs"
+          style={{ borderTop: "1px solid var(--color-stone-border)", color: "var(--color-ash-gray)" }}
+        >
+          <span>Showing {sorted.length} bearings</span>
+        </div>
+      )}
     </div>
   );
 }

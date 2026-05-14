@@ -2,13 +2,17 @@ export type BearingStatus = "normal" | "warning" | "critical" | "offline";
 
 export type TelemetryPoint = {
   timestamp: string;
+  fileIdx?: number;
   vibration: number;
   temperature: number;
   pressure: number;
   healthScore: number;
   failureProbability: number;
   rul: number;
+  rulLower?: number;
+  rulUpper?: number;
   rpm: number;
+  faultType?: string;
 };
 
 export type BearingSummary = {
@@ -42,8 +46,7 @@ export type DashboardData = {
   avgRul: number;
   activeAlerts: number;
   bearings: BearingSummary[];
-  telemetry: TelemetryPoint[];
-  source: "backend" | "demo";
+  source: "backend";
 };
 
 export type HealthCheck = {
@@ -59,10 +62,11 @@ type RawHealthResponse = {
   service?: string;
   checkedAt?: string;
 };
+
 export type BearingDetailData = {
   bearing: BearingSummary;
   telemetry: TelemetryPoint[];
-  source: "backend" | "demo";
+  source: "backend";
 };
 
 type BackendEnvelope<T> = {
@@ -70,6 +74,7 @@ type BackendEnvelope<T> = {
   count?: number;
   data?: T;
 };
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 
 function endpoint(path: string) {
@@ -119,13 +124,9 @@ function asHoursFromMinutes(value: unknown, fallback = 0) {
 function asStatus(value: unknown, failureProbability: number): BearingStatus {
   const status = String(value ?? "").toLowerCase();
 
-  if (status === "critical" || status === "warning" || status === "normal" || status === "offline") {
-    return status;
-  }
+  if (status === "offline") return "offline";
 
-  const healthyLike = new Set(["healthy", "ok", "nominal"]);
-  if (healthyLike.has(status)) return "normal";
-
+  // Always derive status from failure probability — backend status field lags behind predictions
   if (failureProbability >= 70) return "critical";
   if (failureProbability >= 35) return "warning";
   return "normal";
@@ -192,6 +193,7 @@ function normalizePredictionPoint(value: unknown, bearing: BearingSummary, index
 
   return {
     timestamp,
+    fileIdx: asNumber(point.file_idx ?? point.fileIdx, index + 1),
     vibration: asNumber(point.vibration ?? point.vibrationRms ?? point.vibration_rms, bearing.vibration),
     temperature: asNumber(point.temperature ?? point.temp, bearing.temperature),
     pressure: asNumber(point.pressure, bearing.pressure),
@@ -204,7 +206,15 @@ function normalizePredictionPoint(value: unknown, bearing: BearingSummary, index
       point.rul ?? point.rul_hours ?? point.rul_minutes ?? point.remainingUsefulLife ?? point.remaining_useful_life,
       bearing.rul,
     ),
+    // Fields with explicit minutes suffix need conversion; bare rul_lower/rul_upper assumed hours
+    rulLower: (point.rul_lower_minutes ?? point.rulLowerMinutes) != null
+      ? asHoursFromMinutes(point.rul_lower_minutes ?? point.rulLowerMinutes, bearing.rul)
+      : asNumber(point.rul_lower, bearing.rul),
+    rulUpper: (point.rul_upper_minutes ?? point.rulUpperMinutes) != null
+      ? asHoursFromMinutes(point.rul_upper_minutes ?? point.rulUpperMinutes, bearing.rul)
+      : asNumber(point.rul_upper, bearing.rul),
     rpm: asNumber(point.rpm ?? point.speed, bearing.rpm),
+    faultType: asString(point.fault_type ?? point.faultType, ""),
   };
 }
 
@@ -224,178 +234,56 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function buildFleetTelemetry(bearings: BearingSummary[]): TelemetryPoint[] {
-  return Array.from({ length: 24 }, (_, index) => {
-    const wave = Math.sin(index / 3.4);
-    const drift = index / 24;
-    const avgHealth = average(bearings.map((bearing) => bearing.healthScore));
-    const avgFailure = average(bearings.map((bearing) => bearing.failureProbability));
-    const avgRul = average(bearings.map((bearing) => bearing.rul));
-    const avgTemp = average(bearings.map((bearing) => bearing.temperature));
-    const avgVibration = average(bearings.map((bearing) => bearing.vibration));
-    const avgPressure = average(bearings.map((bearing) => bearing.pressure));
-    const avgRpm = average(bearings.map((bearing) => bearing.rpm));
-
-    return {
-      timestamp: new Date(Date.now() - (23 - index) * 60 * 60 * 1000).toISOString(),
-      healthScore: Number((avgHealth - drift * 2.4 + wave * 1.6).toFixed(1)),
-      failureProbability: Number((avgFailure + drift * 4 + Math.max(wave, 0) * 3).toFixed(1)),
-      rul: Number((Math.max(0, avgRul - drift * 18)).toFixed(1)),
-      temperature: Number((avgTemp + wave * 1.3 + drift * 0.8).toFixed(1)),
-      vibration: Number((avgVibration + wave * 0.18 + drift * 0.12).toFixed(2)),
-      pressure: Number((avgPressure + Math.cos(index / 4) * 0.08).toFixed(2)),
-      rpm: Math.round(avgRpm + wave * 18),
-    };
-  });
-}
-
 function buildDetailTelemetry(bearing: BearingSummary, predictions: unknown[]): TelemetryPoint[] {
-  if (predictions.length) {
-    return [...predictions]
-      .map((prediction, index) => normalizePredictionPoint(prediction, bearing, index))
-      .reverse();
-  }
-
-  return Array.from({ length: 24 }, (_, index) => {
-    const wave = Math.sin(index / 3.2);
-    const drift = index / 24;
-    return {
-      timestamp: new Date(Date.now() - (23 - index) * 60 * 60 * 1000).toISOString(),
-      vibration: Number((bearing.vibration + wave * 0.22 + drift * 0.18).toFixed(2)),
-      temperature: Number((bearing.temperature + wave * 1.5 + drift * 0.9).toFixed(1)),
-      pressure: Number((bearing.pressure + Math.cos(index / 4) * 0.1).toFixed(2)),
-      healthScore: Number((bearing.healthScore - drift * 2.6 + wave * 1.8).toFixed(1)),
-      failureProbability: Number((bearing.failureProbability + drift * 3 + Math.max(wave, 0) * 2.5).toFixed(1)),
-      rul: Number((Math.max(0, bearing.rul - (23 - index) * 1.8)).toFixed(1)),
-      rpm: Math.round(bearing.rpm + wave * 20),
-    };
-  });
-}
-
-function demoDashboard(): DashboardData {
-  const demoBearings: BearingSummary[] = [
-    {
-      id: "BRG-001",
-      apiId: "demo-critical-1",
-      name: "Drive Shaft Bearing",
-      assetName: "Unit 7 Thermal Press",
-      location: "Western Plant B",
-      status: "critical",
-      healthScore: 62,
-      failureProbability: 74,
-      rul: 118,
-      temperature: 84,
-      vibration: 5.8,
-      pressure: 5.2,
-      rpm: 1460,
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: "BRG-002",
-      apiId: "demo-warning-1",
-      name: "Main Spindle Bearing",
-      assetName: "CNC Cell 3",
-      location: "Western Plant B",
-      status: "warning",
-      healthScore: 78,
-      failureProbability: 39,
-      rul: 286,
-      temperature: 73,
-      vibration: 3.9,
-      pressure: 4.9,
-      rpm: 1432,
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: "BRG-003",
-      apiId: "demo-normal-1",
-      name: "Cooling Fan Bearing",
-      assetName: "Compressor A2",
-      location: "Northern Plant A",
-      status: "normal",
-      healthScore: 91,
-      failureProbability: 11,
-      rul: 544,
-      temperature: 61,
-      vibration: 2.1,
-      pressure: 4.7,
-      rpm: 1498,
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const totals = computeTotals(demoBearings);
-  return {
-    generatedAt: new Date().toISOString(),
-    totals,
-    avgHealthScore: average(demoBearings.map((bearing) => bearing.healthScore)),
-    avgFailureProbability: average(demoBearings.map((bearing) => bearing.failureProbability)),
-    avgRul: average(demoBearings.map((bearing) => bearing.rul)),
-    activeAlerts: totals.warning + totals.critical,
-    bearings: demoBearings,
-    telemetry: buildFleetTelemetry(demoBearings),
-    source: "demo",
-  };
+  return [...predictions]
+    .map((prediction, index) => normalizePredictionPoint(prediction, bearing, index))
+    .reverse();
 }
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
-  try {
-    const payload = unwrapEnvelope(await getJson<BackendEnvelope<unknown[]>>("/api/v1/bearings", signal));
-    const bearings = Array.isArray(payload) ? payload.map(normalizeBearing) : [];
+  const payload = unwrapEnvelope(await getJson<BackendEnvelope<unknown[]>>("/api/v1/bearings", signal));
+  const bearings = Array.isArray(payload) ? payload.map(normalizeBearing) : [];
+  const totals = computeTotals(bearings);
 
-    if (bearings.length) {
-      const totals = computeTotals(bearings);
-      return {
-        generatedAt: new Date().toISOString(),
-        totals,
-        avgHealthScore: average(bearings.map((bearing) => bearing.healthScore)),
-        avgFailureProbability: average(bearings.map((bearing) => bearing.failureProbability)),
-        avgRul: average(bearings.map((bearing) => bearing.rul)),
-        activeAlerts: totals.warning + totals.critical,
-        bearings,
-        telemetry: buildFleetTelemetry(bearings),
-        source: "backend",
-      };
-    }
-  } catch {
-    // Fall back to demo data when backend is unavailable.
-  }
+  return {
+    generatedAt: new Date().toISOString(),
+    totals,
+    avgHealthScore: average(bearings.map((bearing) => bearing.healthScore)),
+    avgFailureProbability: average(bearings.map((bearing) => bearing.failureProbability)),
+    avgRul: average(bearings.map((bearing) => bearing.rul)),
+    activeAlerts: totals.warning + totals.critical,
+    bearings,
+    source: "backend",
+  };
+}
 
-  return demoDashboard();
+export async function fetchBearingPredictions(apiId: string, bearing: BearingSummary, signal?: AbortSignal, limit = 48) {
+  const predictionsPayload = unwrapEnvelope(
+    await getJson<BackendEnvelope<unknown[]>>(
+      `/api/v1/bearings/${encodeURIComponent(apiId)}/predictions?limit=${limit}`,
+      signal,
+    ),
+  );
+  const predictions = Array.isArray(predictionsPayload) ? predictionsPayload : [];
+  return buildDetailTelemetry(bearing, predictions);
 }
 
 export async function fetchBearingDetail(id: string, signal?: AbortSignal): Promise<BearingDetailData> {
-  try {
-    const bearingsPayload = unwrapEnvelope(await getJson<BackendEnvelope<unknown[]>>("/api/v1/bearings", signal));
-    const bearings = Array.isArray(bearingsPayload) ? bearingsPayload.map(normalizeBearing) : [];
-    const bearing = bearings.find((item) => item.id === id || item.apiId === id);
+  const bearingsPayload = unwrapEnvelope(await getJson<BackendEnvelope<unknown[]>>("/api/v1/bearings", signal));
+  const bearings = Array.isArray(bearingsPayload) ? bearingsPayload.map(normalizeBearing) : [];
+  const bearing = bearings.find((item) => item.id === id || item.apiId === id);
 
-    if (!bearing) {
-      throw new Error(`Bearing ${id} not found`);
-    }
-
-    const predictionsPayload = unwrapEnvelope(
-      await getJson<BackendEnvelope<unknown[]>>(
-        `/api/v1/bearings/${encodeURIComponent(bearing.apiId)}/predictions?limit=48`,
-        signal,
-      ),
-    );
-    const predictions = Array.isArray(predictionsPayload) ? predictionsPayload : [];
-
-    return {
-      bearing,
-      telemetry: buildDetailTelemetry(bearing, predictions),
-      source: "backend",
-    };
-  } catch {
-    const fallbackDashboard = demoDashboard();
-    const fallback = fallbackDashboard.bearings.find((bearing) => bearing.id === id) ?? fallbackDashboard.bearings[0];
-    return {
-      bearing: fallback,
-      telemetry: buildDetailTelemetry(fallback, []),
-      source: "demo",
-    };
+  if (!bearing) {
+    throw new Error(`Bearing ${id} not found`);
   }
+
+  const telemetry = await fetchBearingPredictions(bearing.apiId, bearing, signal);
+
+  return {
+    bearing,
+    telemetry,
+    source: "backend",
+  };
 }
 
 export async function fetchHealth(signal?: AbortSignal): Promise<HealthCheck> {
