@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Start backend + frontend for local development.
 # Prerequisites: Tailscale connected to the lab server.
+#
+# Usage:
+#   bash scripts/dev.sh      ← works without chmod
+#   ./scripts/dev.sh         ← after first run (script self-chmod's)
 
 set -euo pipefail
 
