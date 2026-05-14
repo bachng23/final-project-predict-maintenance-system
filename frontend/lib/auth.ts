@@ -27,6 +27,24 @@ export function hasToken() {
   return Boolean(getToken());
 }
 
+export type TokenUser = {
+  id: string;
+  role: string;
+};
+
+export function getUserFromToken(): TokenUser | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const id = typeof payload.id === "string" ? payload.id : "";
+    const role = typeof payload.role === "string" ? payload.role : "";
+    return id && role ? { id, role } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function redirectToLogin() {
   if (typeof window === "undefined") return;
   if (window.location.pathname !== "/login") {
