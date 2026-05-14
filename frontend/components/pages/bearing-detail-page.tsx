@@ -107,6 +107,7 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
         const detail = await fetchBearingDetail(bearingId, controller.signal);
         setData(detail);
       } catch (caught) {
+        if (caught instanceof Error && caught.name === "AbortError") return;
         setError(caught instanceof Error ? caught.message : "Unable to load bearing detail.");
       }
     };
@@ -132,7 +133,8 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
     return Math.max(...data.telemetry.map((p) => p.rul), 1);
   }, [data?.telemetry, rul]);
 
-  const chartData = (data?.telemetry ?? []).map((p) => ({
+  const chartData = (data?.telemetry ?? []).map((p, i) => ({
+    index: i,
     time: formatChartTime(p.timestamp),
     health: +p.healthScore.toFixed(1),
     pFail: +p.failureProbability.toFixed(1),
@@ -263,10 +265,13 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 8, right: 24, bottom: 0, left: -20 }}>
                   <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#78716c" }} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="index" tickFormatter={(i) => chartData[i]?.time ?? ""} tick={{ fontSize: 11, fill: "#78716c" }} tickLine={false} axisLine={false} minTickGap={40} />
                   <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#78716c" }} tickLine={false} axisLine={false} domain={[0, 100]} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "#78716c" }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12 }}
+                    labelFormatter={(i) => chartData[i as number]?.time ?? ""}
+                  />
                   <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                   <Area yAxisId="left" dataKey="health" name="Health Score" stroke="#10b981" fill="rgba(16,185,129,0.1)" strokeWidth={2} dot={false} />
                   <Line yAxisId="left" dataKey="pFail" name="Failure Prob." stroke="#f43f5e" strokeWidth={2} dot={false} />

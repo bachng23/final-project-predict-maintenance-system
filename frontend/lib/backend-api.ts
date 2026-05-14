@@ -124,13 +124,9 @@ function asHoursFromMinutes(value: unknown, fallback = 0) {
 function asStatus(value: unknown, failureProbability: number): BearingStatus {
   const status = String(value ?? "").toLowerCase();
 
-  if (status === "critical" || status === "warning" || status === "normal" || status === "offline") {
-    return status;
-  }
+  if (status === "offline") return "offline";
 
-  const healthyLike = new Set(["healthy", "ok", "nominal"]);
-  if (healthyLike.has(status)) return "normal";
-
+  // Always derive status from failure probability — backend status field lags behind predictions
   if (failureProbability >= 70) return "critical";
   if (failureProbability >= 35) return "warning";
   return "normal";
