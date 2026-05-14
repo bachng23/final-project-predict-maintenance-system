@@ -12,7 +12,7 @@ function makeSocket(namespace: string): Socket | null {
   if (typeof window === 'undefined') return null;
   return io(`${WS_URL}${namespace}`, {
     transports: ['websocket'],
-    auth: { token: getToken() },
+    auth: (cb: (data: object) => void) => cb({ token: getToken() }),
     autoConnect: true,
     reconnectionDelay: 2000,
   });

@@ -14,7 +14,7 @@ import {
   Inbox,
   Brain,
 } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { clearToken, hasToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -45,12 +45,17 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     if (!hasToken()) {
       router.replace("/login");
+    } else {
+      setAuthChecked(true);
     }
   }, [router]);
+
+  if (!authChecked) return null;
 
   function handleLogout() {
     clearToken();
