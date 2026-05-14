@@ -15,6 +15,7 @@ import {
   Brain,
   Users,
   PlayCircle,
+  Bot,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/assets", label: "Assets", icon: Server },
   { href: "/bearings", label: "Bearings", icon: CircleDot },
   { href: "/policy", label: "Decision Queue", icon: Inbox },
+  { href: "/agents", label: "Agent Monitor", icon: Bot },
   { href: "/demo", label: "Live Demo", icon: PlayCircle },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
