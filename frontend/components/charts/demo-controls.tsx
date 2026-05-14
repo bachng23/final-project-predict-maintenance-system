@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Play, Square, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { authFetch } from "@/lib/auth";
 
 interface BearingOption {
   id: string;
@@ -31,8 +32,8 @@ export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   // Load available bearings + sync running state together
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/v1/demo/bearings`).then((r) => r.json()).catch(() => ({ bearings: [] })),
-      fetch(`${API}/v1/demo/status`).then((r) => r.json()).catch(() => ({ running: false })),
+      authFetch(`${API}/v1/demo/bearings`).then((r) => r.json()).catch(() => ({ bearings: [] })),
+      authFetch(`${API}/v1/demo/status`).then((r) => r.json()).catch(() => ({ running: false })),
     ]).then(([bearingRes, statusRes]) => {
       const list: BearingOption[] = bearingRes.bearings ?? [];
       setBearings(list);
@@ -52,7 +53,7 @@ export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   async function startDemo() {
     setError(null);
     try {
-      const res = await fetch(`${API}/v1/demo/start`, {
+      const res = await authFetch(`${API}/v1/demo/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bearing_id: selectedId, speed }),
@@ -69,7 +70,7 @@ export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   async function stopDemo() {
     setError(null);
     try {
-      await fetch(`${API}/v1/demo/stop`, { method: "POST" });
+      await authFetch(`${API}/v1/demo/stop`, { method: "POST" });
     } catch {
       // best-effort
     }

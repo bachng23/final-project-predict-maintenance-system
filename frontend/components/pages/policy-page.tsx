@@ -4,15 +4,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { RefreshCcw } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { authFetch, endpoint } from "@/lib/auth";
 
 // ─── Types (kept exactly from original) ───────────────────────────────────────
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
-
-function endpoint(path: string) {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
-}
 
 type DecisionAction = "approve" | "override" | "reject";
 type RawDecision = Record<string, unknown>;
@@ -69,23 +63,23 @@ function normalizeDecision(v: RawDecision, idx: number): PendingDecision {
 }
 
 async function fetchPendingDecisions(signal?: AbortSignal): Promise<PendingDecision[]> {
-  const response = await fetch(endpoint("/api/decisions/pending"), {
+  const response = await authFetch(endpoint("/api/v1/decisions/pending"), {
     cache: "no-store",
     headers: { Accept: "application/json" },
     signal,
   });
-  if (!response.ok) throw new Error(`GET /api/decisions/pending failed with ${response.status}`);
+  if (!response.ok) throw new Error(`GET /api/v1/decisions/pending failed with ${response.status}`);
   const raw = await response.json();
   return unwrapDecisions(raw).map(normalizeDecision);
 }
 
 async function submitDecisionAction(decisionId: string, action: DecisionAction, reason?: string) {
-  const response = await fetch(endpoint(`/api/decisions/${encodeURIComponent(decisionId)}/action`), {
+  const response = await authFetch(endpoint(`/api/v1/decisions/${encodeURIComponent(decisionId)}/action`), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ action, reason: reason?.trim() || undefined }),
   });
-  if (!response.ok) throw new Error(`POST /api/decisions/${decisionId}/action failed with ${response.status}`);
+  if (!response.ok) throw new Error(`POST /api/v1/decisions/${decisionId}/action failed with ${response.status}`);
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

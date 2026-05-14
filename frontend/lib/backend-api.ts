@@ -1,3 +1,5 @@
+import { authFetch, endpoint } from "@/lib/auth";
+
 export type BearingStatus = "normal" | "warning" | "critical" | "offline";
 
 export type TelemetryPoint = {
@@ -75,15 +77,8 @@ type BackendEnvelope<T> = {
   data?: T;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
-
-function endpoint(path: string) {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
-}
-
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(endpoint(path), {
+  const response = await authFetch(endpoint(path), {
     cache: "no-store",
     headers: {
       Accept: "application/json",
