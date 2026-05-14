@@ -1,0 +1,91 @@
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const prisma = require('../config/prisma');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+/**
+ * Login user
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username and password are required',
+      });
+    }
+
+    // Find user by username
+    const user = await prisma.user.findUnique({
+      where: { username },
+    });
+
+    // Check if user exists
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password',
+      });
+    }
+
+    // Check if user is active
+    if (!user.active) {
+      return res.status(401).json({
+        success: false,
+        message: 'User account is inactive',
+      });
+    }
+
+    // Compare password hash
+    const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password',
+      });
+    }
+
+    // Sign JWT token
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    // Update lastLoginAt
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    // Return success response
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        fullName: user.fullName,
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+};
+
+module.exports = {
+  login,
+};
