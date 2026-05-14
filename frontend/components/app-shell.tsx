@@ -32,14 +32,17 @@ type AppShellProps = {
   status?: "backend" | "demo";
 };
 
-const navItems = [
+const workspaceItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/analytics", label: "Analytics", icon: Activity },
   { href: "/assets", label: "Assets", icon: Server },
   { href: "/bearings", label: "Bearings", icon: CircleDot },
   { href: "/policy", label: "Decision Queue", icon: Inbox },
-  { href: "/agents", label: "Agent Monitor", icon: Bot },
   { href: "/demo", label: "Live Demo", icon: PlayCircle },
+];
+
+const systemsItems = [
+  { href: "/agents", label: "Agent Monitor", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -57,6 +60,7 @@ export function AppShell({
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<TokenUser | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [displayName, setDisplayName] = useState<string>("");
 
   useEffect(() => {
     if (!hasToken()) {
@@ -64,6 +68,14 @@ export function AppShell({
     } else {
       setCurrentUser(getUserFromToken());
       setAuthChecked(true);
+      authFetch(endpoint("/api/v1/users/me"))
+        .then(r => r.ok ? r.json() : null)
+        .then((data: unknown) => {
+          if (data && typeof (data as Record<string, unknown>).name === "string") {
+            setDisplayName((data as Record<string, string>).name);
+          }
+        })
+        .catch(() => {});
     }
   }, [router]);
 
@@ -135,82 +147,128 @@ export function AppShell({
         </div>
 
         {/* Nav */}
-        <nav className="flex flex-col gap-0.5 px-3 flex-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href, item.exact);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                )}
-                style={{
-                  background: active ? "var(--color-sky-tint)" : "transparent",
-                  color: active ? "var(--color-slate-text)" : "var(--color-ash-gray)",
-                }}
-              >
-                {active && (
-                  <span
-                    className="absolute -left-3 bottom-1.5 top-1.5 w-0.5 rounded-r"
-                    style={{ background: "var(--color-chartwell-blue)" }}
-                  />
-                )}
-                <Icon
-                  className="h-4 w-4 shrink-0"
-                  style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
-                />
-                <span className="flex-1">{item.label}</span>
-                {item.href === "/policy" && pendingCount > 0 && (
-                  <span
-                    className="rounded-full px-1.5 py-px text-[11px] font-semibold leading-tight text-white"
-                    style={{ background: "var(--color-rose)" }}
-                  >
-                    {pendingCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Admin nav — only for ADMIN role */}
-        {currentUser?.role === "ADMIN" && (
-          <div className="px-3" style={{ borderTop: "1px solid var(--color-stone-border)", paddingTop: 12, marginTop: 4 }}>
-            <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest"
-              style={{ color: "var(--color-steel-gray)", margin: 0, paddingLeft: 12 }}>
-              Admin
+        <nav className="flex flex-col flex-1 overflow-y-auto px-3 gap-4 py-2">
+          {/* Workspace */}
+          <div>
+            <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: "var(--color-steel-gray)" }}>
+              Workspace
             </p>
-            {adminNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
-                  style={{
-                    background: active ? "var(--color-sky-tint)" : "transparent",
-                    color: active ? "var(--color-slate-text)" : "var(--color-ash-gray)",
-                  }}
-                >
-                  {active && (
-                    <span
-                      className="absolute -left-3 bottom-1.5 top-1.5 w-0.5 rounded-r"
-                      style={{ background: "var(--color-chartwell-blue)" }}
+            <div className="flex flex-col gap-0.5">
+              {workspaceItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href, item.exact);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                    style={{
+                      background: active ? "var(--color-sky-tint)" : "transparent",
+                      color: active ? "var(--color-slate-text)" : "var(--color-ash-gray)",
+                    }}
+                  >
+                    {active && (
+                      <span
+                        className="absolute -left-3 bottom-1.5 top-1.5 w-0.5 rounded-r"
+                        style={{ background: "var(--color-chartwell-blue)" }}
+                      />
+                    )}
+                    <Icon
+                      className="h-4 w-4 shrink-0"
+                      style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
                     />
-                  )}
-                  <Icon
-                    className="h-4 w-4 shrink-0"
-                    style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
-                  />
-                  <span className="flex-1">{item.label}</span>
-                </Link>
-              );
-            })}
+                    <span className="flex-1">{item.label}</span>
+                    {item.href === "/policy" && pendingCount > 0 && (
+                      <span
+                        className="rounded-full px-1.5 py-px text-[11px] font-semibold leading-tight text-white"
+                        style={{ background: "var(--color-rose)" }}
+                      >
+                        {pendingCount}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        )}
+
+          {/* Systems */}
+          <div>
+            <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: "var(--color-steel-gray)" }}>
+              Systems
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {systemsItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href, (item as { exact?: boolean }).exact);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                    style={{
+                      background: active ? "var(--color-sky-tint)" : "transparent",
+                      color: active ? "var(--color-slate-text)" : "var(--color-ash-gray)",
+                    }}
+                  >
+                    {active && (
+                      <span
+                        className="absolute -left-3 bottom-1.5 top-1.5 w-0.5 rounded-r"
+                        style={{ background: "var(--color-chartwell-blue)" }}
+                      />
+                    )}
+                    <Icon
+                      className="h-4 w-4 shrink-0"
+                      style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
+                    />
+                    <span className="flex-1">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Admin — only for ADMIN role */}
+          {currentUser?.role === "ADMIN" && (
+            <div>
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: "var(--color-steel-gray)" }}>
+                Admin
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {adminNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                      style={{
+                        background: active ? "var(--color-sky-tint)" : "transparent",
+                        color: active ? "var(--color-slate-text)" : "var(--color-ash-gray)",
+                      }}
+                    >
+                      {active && (
+                        <span
+                          className="absolute -left-3 bottom-1.5 top-1.5 w-0.5 rounded-r"
+                          style={{ background: "var(--color-chartwell-blue)" }}
+                        />
+                      )}
+                      <Icon
+                        className="h-4 w-4 shrink-0"
+                        style={{ color: active ? "var(--color-chartwell-blue)" : "currentColor" }}
+                      />
+                      <span className="flex-1">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </nav>
 
         {/* User footer */}
         <div
@@ -221,11 +279,13 @@ export function AppShell({
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
             style={{ background: "linear-gradient(135deg, #3ba6f1, #1c1917)" }}
           >
-            OL
+            {displayName
+              ? displayName.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
+              : (currentUser?.role ?? "U").slice(0, 2).toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="truncate text-[13px] font-medium" style={{ color: "var(--color-slate-text)" }}>
-              Operations Lead
+              {displayName || currentUser?.role || "User"}
             </p>
             <span
               className="rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide"
