@@ -20,7 +20,8 @@ const requireAuth = async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
-    } catch (_) {
+    } catch (err) {
+      console.warn(`[auth] JWT verification failed: ${err.name}`);
       return next(new Error('UNAUTHORIZED'));
     }
 
