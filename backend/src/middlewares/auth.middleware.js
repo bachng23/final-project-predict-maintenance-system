@@ -1,7 +1,10 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 /**
  * Middleware to require authentication via JWT
@@ -10,18 +13,23 @@ const requireAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new Error('UNAUTHORIZED');
+      return next(new Error('UNAUTHORIZED'));
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (_) {
+      return next(new Error('UNAUTHORIZED'));
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.id || decoded.sub },
     });
 
     if (!user || !user.active) {
-      throw new Error('UNAUTHORIZED');
+      return next(new Error('UNAUTHORIZED'));
     }
 
     req.user = user;

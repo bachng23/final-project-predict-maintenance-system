@@ -92,7 +92,7 @@ const getDecisionById = async (id) => {
 const processDecisionAction = async (decisionId, data) => {
   const { action, override_reason, expected_version, actor, selected_action } = data;
 
-  return await prisma.$transaction(async (tx) => {
+  const { updatedDecision, finalAction } = await prisma.$transaction(async (tx) => {
     // 1. Fetch current state for "before" audit log and checks
     const decision = await tx.decision.findUnique({
       where: { id: decisionId },
@@ -105,48 +105,40 @@ const processDecisionAction = async (decisionId, data) => {
 
     // 2. Reject if already processed
     if (decision.decisionStatus !== 'PENDING') {
-      throw new Error('VALIDATION_ERROR: Decision is already processed');
+      const err = new Error('Decision is already processed');
+      err.code = 'ALREADY_PROCESSED';
+      throw err;
     }
 
-    // 3. Optimistic locking check
-    // We only check version if expected_version is provided (Progressive locking)
+    const newStatus = decision.safetyVeto && action === 'ACKNOWLEDGE' ? 'ACKNOWLEDGED' : 'RESOLVED';
+
+    // 3. Optimistic locking check (only when expected_version is provided)
     if (expected_version !== undefined) {
       const updatedCount = await tx.decision.updateMany({
-        where: {
-          id: decisionId,
-          version: expected_version,
-        },
-        data: {
-          decisionStatus: decision.safetyVeto && action === 'ACKNOWLEDGE' ? 'ACKNOWLEDGED' : 'RESOLVED',
-          resolvedAt: new Date(),
-          version: { increment: 1 },
-        },
+        where: { id: decisionId, version: expected_version },
+        data: { decisionStatus: newStatus, resolvedAt: new Date(), version: { increment: 1 } },
       });
 
       if (updatedCount.count === 0) {
-        throw new Error('DECISION_CONFLICT: Decision was modified by another operator');
+        const err = new Error('Decision was modified by another operator');
+        err.code = 'DECISION_CONFLICT';
+        throw err;
       }
     } else {
-      // Fallback if version not provided (deprecated but supports old frontend)
+      // Fallback: no optimistic lock (deprecated — supports old frontend)
       await tx.decision.update({
         where: { id: decisionId },
-        data: {
-          decisionStatus: decision.safetyVeto && action === 'ACKNOWLEDGE' ? 'ACKNOWLEDGED' : 'RESOLVED',
-          resolvedAt: new Date(),
-          version: { increment: 1 },
-        },
+        data: { decisionStatus: newStatus, resolvedAt: new Date(), version: { increment: 1 } },
       });
     }
 
     // 4. Fetch the updated record
-    const updatedDecision = await tx.decision.findUnique({
-      where: { id: decisionId }
-    });
+    const updatedDecision = await tx.decision.findUnique({ where: { id: decisionId } });
 
     // 5. Determine final action
-    let finalAction = decision.recommendedAction;
+    let txFinalAction = decision.recommendedAction;
     if (action === 'OVERRIDE' || action === 'REJECT') {
-      finalAction = selected_action || 'CONTINUE';
+      txFinalAction = selected_action || 'CONTINUE';
     }
 
     // 6. Record DecisionAction
@@ -154,7 +146,7 @@ const processDecisionAction = async (decisionId, data) => {
       data: {
         decisionId: decision.id,
         action: action,
-        finalAction: finalAction,
+        finalAction: txFinalAction,
         overrideReason: override_reason,
         actorUserId: actor.id,
         actorRole: actor.role,
@@ -169,7 +161,7 @@ const processDecisionAction = async (decisionId, data) => {
           decisionId: decision.id,
           snapshotId: decision.snapshotId,
           aiRecommendedAction: decision.recommendedAction,
-          humanSelectedAction: finalAction,
+          humanSelectedAction: txFinalAction,
           overrideReason: override_reason,
         },
       });
@@ -183,36 +175,33 @@ const processDecisionAction = async (decisionId, data) => {
         action: `PROCESS_${action}`,
         actorUserId: actor.id,
         payloadJson: {
-          before: {
-            status: decision.decisionStatus,
-            version: decision.version
-          },
-          after: {
-            status: updatedDecision.decisionStatus,
-            version: updatedDecision.version
-          }
-        }
-      }
+          before: { status: decision.decisionStatus, version: decision.version },
+          after: { status: updatedDecision.decisionStatus, version: updatedDecision.version },
+        },
+      },
     });
 
-    // 9. Emit Socket.IO event
-    const io = getIO();
-    if (io) {
-      io.of('/decisions').emit('decision.resolved', {
-        event_type: 'DECISION_RESOLVED',
-        event_id: updatedDecision.id,
-        ts: new Date().toISOString(),
-        payload: {
-          decision_id: updatedDecision.id,
-          status: updatedDecision.decisionStatus,
-          action: action,
-          final_action: finalAction
-        }
-      });
-    }
-
-    return updatedDecision;
+    return { updatedDecision, finalAction: txFinalAction };
   });
+
+  // 9. Emit Socket.IO event AFTER transaction commits — prevents clients receiving
+  //    stale events if the transaction rolls back after the emit.
+  const io = getIO();
+  if (io) {
+    io.of('/decisions').emit('decision.resolved', {
+      event_type: 'DECISION_RESOLVED',
+      event_id: updatedDecision.id,
+      ts: new Date().toISOString(),
+      payload: {
+        decision_id: updatedDecision.id,
+        status: updatedDecision.decisionStatus,
+        action: action,
+        final_action: finalAction,
+      },
+    });
+  }
+
+  return updatedDecision;
 };
 
 module.exports = {

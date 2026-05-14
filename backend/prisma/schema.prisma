@@ -64,11 +64,13 @@ model Prediction {
   modelVersion    String     @map("model_version")
   pipelineRunId   String?    @map("pipeline_run_id")
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  bearing         Bearing    @relation(fields: [bearingId], references: [id])
+  bearing         Bearing    @relation(fields: [bearingId], references: [id], onDelete: Restrict)
   snapshots       Snapshot[]
 
   @@unique([bearingId, fileIdx, modelVersion])
+  @@index([bearingId, fileIdx(sort: Desc)])
   @@index([bearingId, sampleTs(sort: Desc)])
+  @@index([hybridScore(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("predictions")
 }
@@ -86,8 +88,8 @@ model Snapshot {
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   agentTranscripts AgentTranscript[]
   decision         Decision?
-  bearing          Bearing           @relation(fields: [bearingId], references: [id])
-  prediction       Prediction        @relation(fields: [predictionId], references: [id])
+  bearing          Bearing           @relation(fields: [bearingId], references: [id], onDelete: Restrict)
+  prediction       Prediction        @relation(fields: [predictionId], references: [id], onDelete: Restrict)
 
   @@index([bearingId, snapshotTs(sort: Desc)])
   @@map("snapshots")
@@ -125,8 +127,8 @@ model DecisionAction {
   actorRole      String         @map("actor_role")
   submittedAt    DateTime       @default(now()) @map("submitted_at") @db.Timestamptz(6)
   source         ActionSource
-  actor          User           @relation(fields: [actorUserId], references: [id])
-  decision       Decision       @relation(fields: [decisionId], references: [id])
+  actor          User           @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  decision       Decision       @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
   @@map("decision_actions")
 }
@@ -140,7 +142,7 @@ model OverridePreference {
   overrideReason      String?    @map("override_reason")
   confidenceGap       Float?     @map("confidence_gap")
   createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  decision            Decision   @relation(fields: [decisionId], references: [id])
+  decision            Decision   @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
   @@map("override_preferences")
 }
@@ -155,7 +157,7 @@ model AgentTranscript {
   confidence      Float?
   reasoningText   String           @map("reasoning_text")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  snapshot        Snapshot         @relation(fields: [snapshotId], references: [id])
+  snapshot        Snapshot         @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
 
   @@index([snapshotId, roundNo, createdAt])
   @@map("agent_transcripts")

@@ -83,19 +83,22 @@ const handleDecisionAction = async (req, res, next) => {
         error: {
           code: 'VALIDATION_ERROR',
           message: error.errors?.[0]?.message || 'Validation failed',
-          detail: error.errors
-        }
+          detail: error.errors,
+        },
       });
     }
 
-    // Special handling for conflict
-    if (error.message.includes('DECISION_CONFLICT')) {
+    if (error.code === 'ALREADY_PROCESSED') {
       return res.status(409).json({
         success: false,
-        error: {
-          code: 'DECISION_CONFLICT',
-          message: error.message
-        }
+        error: { code: 'ALREADY_PROCESSED', message: error.message },
+      });
+    }
+
+    if (error.code === 'DECISION_CONFLICT') {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'DECISION_CONFLICT', message: error.message },
       });
     }
 
