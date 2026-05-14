@@ -14,6 +14,7 @@ import {
   Inbox,
   Brain,
   Users,
+  PlayCircle,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/assets", label: "Assets", icon: Server },
   { href: "/bearings", label: "Bearings", icon: CircleDot },
   { href: "/policy", label: "Decision Queue", icon: Inbox },
+  { href: "/demo", label: "Live Demo", icon: PlayCircle },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -173,9 +175,9 @@ export function AppShell({
 
         {/* Admin nav — only for ADMIN role */}
         {currentUser?.role === "ADMIN" && (
-          <div style={{ borderTop: "1px solid var(--color-stone-border)", paddingTop: 12, marginTop: 4 }}>
-            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-widest"
-              style={{ color: "var(--color-steel-gray)", margin: 0 }}>
+          <div className="px-3" style={{ borderTop: "1px solid var(--color-stone-border)", paddingTop: 12, marginTop: 4 }}>
+            <p className="pb-1 text-[11px] font-semibold uppercase tracking-widest"
+              style={{ color: "var(--color-steel-gray)", margin: 0, paddingLeft: 12 }}>
               Admin
             </p>
             {adminNavItems.map((item) => {
