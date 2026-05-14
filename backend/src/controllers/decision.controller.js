@@ -82,8 +82,8 @@ const handleDecisionAction = async (req, res, next) => {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: error.errors?.[0]?.message || 'Validation failed',
-          detail: error.errors,
+          message: error.issues?.[0]?.message || 'Validation failed',
+          detail: error.issues,
         },
       });
     }

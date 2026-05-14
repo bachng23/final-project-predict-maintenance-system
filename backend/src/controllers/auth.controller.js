@@ -2,6 +2,11 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const prisma = require('../config/prisma');
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
 /**
  * Login user
  * @param {import('express').Request} req
@@ -51,7 +56,7 @@ const login = async (req, res) => {
     // Sign JWT token
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      process.env.JWT_SECRET || 'fallback-secret',
+      JWT_SECRET,
       { expiresIn: '8h' }
     );
 
