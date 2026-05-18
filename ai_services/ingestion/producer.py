@@ -115,7 +115,7 @@ class XJTUProducer:
             self.bearing_id, total, self.condition, self.rpm, interval, self.speed,
         )
 
-        for file_path in files:
+        for position, file_path in enumerate(files):
             file_idx = int(file_path.stem)
             if file_idx < start_idx:
                 continue
@@ -126,7 +126,10 @@ class XJTUProducer:
             print(progress, flush=True)
             logger.info(progress)
 
-            if file_idx < total:
+            # Sleep between files, but not after the last one. Use the loop
+            # position so this is correct regardless of whether the .stem
+            # indices are 0- or 1-based.
+            if position < total - 1:
                 await asyncio.sleep(interval)
 
         logger.info("[%s] Replay finished (%d files).", self.bearing_id, total)

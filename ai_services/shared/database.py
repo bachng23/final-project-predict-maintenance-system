@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid as _uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
@@ -457,6 +458,11 @@ async def is_resolved(snapshot_id: str) -> bool:
 
 async def get_decision_with_snapshot(decision_id: str) -> Optional[dict]:
     """Return decision + snapshot context needed to write a JSONL audit entry."""
+    try:
+        decision_uuid = _uuid.UUID(str(decision_id))
+    except (ValueError, TypeError):
+        logger.warning("get_decision_with_snapshot: invalid UUID %r", decision_id)
+        return None
     async with acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -468,9 +474,9 @@ async def get_decision_with_snapshot(decision_id: str) -> Optional[dict]:
             FROM decisions d
             JOIN snapshots s ON s.id = d.snapshot_id
             JOIN bearings  b ON b.id = s.bearing_id
-            WHERE d.id = $1::uuid
+            WHERE d.id = $1
             """,
-            decision_id,
+            decision_uuid,
         )
     return dict(row) if row else None
 

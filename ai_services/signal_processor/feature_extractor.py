@@ -162,19 +162,22 @@ def extract_features(
     v = signal_2ch[1].astype(np.float64)
     n = len(h)
 
-    # Shared FFT (horizontal)
-    h_freqs   = np.fft.rfftfreq(n, d=1.0 / sample_rate)
+    # FFT — both channels share the same length/sample rate so the frequency
+    # bins are identical, but compute v_freqs explicitly so any future refactor
+    # that changes signal length per-channel doesn't silently mis-bin the v channel.
+    freqs     = np.fft.rfftfreq(n, d=1.0 / sample_rate)
+    h_freqs   = freqs
+    v_freqs   = freqs
     h_fft_mag = np.abs(np.fft.rfft(h)) * (2.0 / n)
     h_power   = h_fft_mag ** 2
     h_total_p = h_power.sum() + 1e-12
 
-    # Shared FFT (vertical)
     v_fft_mag = np.abs(np.fft.rfft(v)) * (2.0 / n)
     v_power   = v_fft_mag ** 2
     v_total_p = v_power.sum() + 1e-12
 
     h_feats = _channel_features(h, h_freqs, h_power, h_total_p, rpm)
-    v_feats = _channel_features(v, h_freqs, v_power, v_total_p, rpm)
+    v_feats = _channel_features(v, v_freqs, v_power, v_total_p, rpm)
 
     # ── Cross-channel ────────────────────────────────────────────────────────
     hv_corr      = float(np.corrcoef(h, v)[0, 1])

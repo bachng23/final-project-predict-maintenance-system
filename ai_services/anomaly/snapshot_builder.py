@@ -37,6 +37,8 @@ async def build_and_persist(
     Returns the SnapshotPayload (also persisted + published).
     """
 
+    prediction = _sanitize_prediction(prediction)
+
     scored_prediction = prediction.model_copy(update={
         "stat_score": trigger.stat_score,
         "rul_drop_score": trigger.rul_drop_score,
@@ -119,6 +121,39 @@ async def _get_prediction_id(prediction: PredictionRecord) -> str:
     """
     from shared.database import upsert_prediction
     return await upsert_prediction(prediction)
+
+
+def _sanitize_prediction(pred: PredictionRecord) -> PredictionRecord:
+    """Clamp fields used by downstream agents to their valid ranges.
+
+    Why: a malformed prediction (negative RUL, p_fail outside [0,1]) can steer
+    the multi-agent negotiation into nonsense decisions. Clamp at the boundary
+    rather than crash so the pipeline keeps moving, but log loudly.
+    """
+    updates: dict = {}
+
+    if not (0.0 <= pred.p_fail <= 1.0):
+        log.error(
+            "p_fail out of [0,1] for bearing=%s file=%s: %.4f — clamping",
+            pred.bearing_id, pred.file_idx, pred.p_fail,
+        )
+        updates["p_fail"] = max(0.0, min(1.0, pred.p_fail))
+
+    if pred.rul_minutes is not None and pred.rul_minutes < 0:
+        log.error(
+            "Negative RUL for bearing=%s file=%s: %.2f — clamping to 0",
+            pred.bearing_id, pred.file_idx, pred.rul_minutes,
+        )
+        updates["rul_minutes"] = 0.0
+
+    if not (0.0 <= pred.health_score <= 100.0):
+        log.warning(
+            "health_score out of [0,100] for bearing=%s: %.2f — clamping",
+            pred.bearing_id, pred.health_score,
+        )
+        updates["health_score"] = max(0.0, min(100.0, pred.health_score))
+
+    return pred.model_copy(update=updates) if updates else pred
 
 
 def _build_safety_context(pred: PredictionRecord) -> dict:

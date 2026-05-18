@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -54,7 +55,9 @@ async def handle_vibration_message(raw: bytes) -> None:
     rpm = CONDITION_RPM.get(msg.condition, 2100)
 
     try:
-        features = extract_features(signal_arr, rpm=float(rpm))
+        # extract_features does heavy numpy/scipy work — offload to a thread so
+        # the asyncio loop can keep servicing Kafka heartbeats and metrics.
+        features = await asyncio.to_thread(extract_features, signal_arr, rpm=float(rpm))
     except Exception:
         logger.exception(
             "[%s] file_idx=%d — feature extraction failed. Skipping.",

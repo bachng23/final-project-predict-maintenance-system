@@ -204,4 +204,12 @@ def load_all_models(retries: int = 10, delay: float = 6.0) -> None:
 def assert_loaded() -> None:
     """Called at request time to fail fast if models weren't loaded."""
     if any(v is None for v in (ae_model, ae_scaler, ae_imputer, rul_model, rul_scaler)):
+        log.error(
+            "Models not loaded — ae_model=%s ae_scaler=%s ae_imputer=%s rul_model=%s rul_scaler=%s",
+            ae_model is not None,
+            ae_scaler is not None,
+            ae_imputer is not None,
+            rul_model is not None,
+            rul_scaler is not None,
+        )
         raise RuntimeError("Models not loaded — was load_all_models() called?")

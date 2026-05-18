@@ -265,6 +265,13 @@ async def _handle_snapshot_message(raw: bytes) -> None:
             }
         )
         bound_logger.info(f"snapshot.completed action={result.recommended_action} rounds={result.rounds_taken}")
+    except BaseException as exc:
+        # Close the root span so partial traces still flush to Langfuse.
+        try:
+            trace.end_with_error(exc)
+        except Exception:
+            bound_logger.exception("trace.end_with_error failed")
+        raise
     finally:
         flush_langfuse()
 

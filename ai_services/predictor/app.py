@@ -57,17 +57,21 @@ async def predict_endpoint(record: FeatureRecord):
         "feature_vector_ref": record.feature_vector_ref,
     })
 
-    # Persist + forward (fire-and-forget, don't block response)
+    # Persist + forward. DB and Kafka are load-bearing for downstream
+    # (anomaly detector, orchestrator); if either fails the prediction is
+    # effectively lost. Cache is best-effort.
     try:
         pred_uuid = await upsert_prediction(prediction)
         log.debug("Prediction persisted: %s", pred_uuid)
     except Exception as exc:
-        log.warning("DB write failed (non-fatal): %s", exc)
+        log.exception("DB write failed for bearing=%s file_idx=%s", prediction.bearing_id, prediction.file_idx)
+        raise HTTPException(status_code=500, detail=f"prediction persistence failed: {exc}") from exc
 
     try:
         await publish_prediction(prediction)
     except Exception as exc:
-        log.warning("Kafka publish failed (non-fatal): %s", exc)
+        log.exception("Kafka publish failed for bearing=%s file_idx=%s", prediction.bearing_id, prediction.file_idx)
+        raise HTTPException(status_code=502, detail=f"prediction publish failed: {exc}") from exc
 
     try:
         await cache_prediction(prediction)

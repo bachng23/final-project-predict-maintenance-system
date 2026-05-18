@@ -99,9 +99,10 @@ class BearingState:
         if len(history) < 2:
             return 0.0
         window = history[-5:]
-        drop = window[0] - current_rul
-        max_drop = max(window[0], 1.0)
-        return max(0.0, min(1.0, drop / max_drop))
+        baseline = window[0]
+        drop = baseline - current_rul
+        denom = max(baseline, 1.0)
+        return max(0.0, min(1.0, drop / denom))
 
     def update(
         self,

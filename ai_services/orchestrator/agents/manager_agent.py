@@ -114,9 +114,13 @@ class ManagerAgent:
         round_no: int | None = None,
     ) -> tuple[str, float, str]:
         decisions: list[tuple[str, str]] = []
+        llm_available = self._llm is not None
         for idx in range(k):
+            # Only open a Langfuse span when an LLM call will actually happen.
+            # Otherwise we'd pollute traces with k empty "fallback" spans every
+            # time Ollama is offline.
             span = None
-            if trace:
+            if trace and llm_available:
                 span = trace.span(
                     name=f"manager/aggregate/self_consistency_{idx + 1}",
                     input=prompt,
@@ -130,6 +134,8 @@ class ManagerAgent:
                 )
             start = time.perf_counter()
             try:
+                if not llm_available:
+                    raise RuntimeError("LLM unavailable")
                 response = self._llm.invoke(prompt)
                 data = json.loads(response.content)
                 action = data.get("action", "INSPECT")
@@ -149,7 +155,10 @@ class ManagerAgent:
 
         counter = Counter(action for action, _ in decisions)
         final_action, count = counter.most_common(1)[0]
-        reasoning = next(reason for action, reason in decisions if action == final_action)
+        reasoning = next(
+            (reason for action, reason in decisions if action == final_action),
+            "Manager selected the majority action.",
+        )
         return final_action, count / k, reasoning or "Manager selected the majority action."
 
     def _format_prompt(

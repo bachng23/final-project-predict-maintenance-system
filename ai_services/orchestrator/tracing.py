@@ -67,8 +67,23 @@ class LangfuseTrace:
         )
 
     def update(self, *, output: Any = None, metadata: dict[str, Any] | None = None) -> None:
-        self.root.update(output=output, metadata=metadata)
-        self.root.end(output=output)
+        try:
+            self.root.update(output=output, metadata=metadata)
+        finally:
+            # End the root span no matter what — otherwise an exception in
+            # update() leaves the trace open and the buffered events never
+            # flush to Langfuse.
+            self.root.end(output=output)
+
+    def end_with_error(self, error: BaseException) -> None:
+        """Close the root span when negotiation raises before update() runs."""
+        try:
+            self.root.update(
+                output={"error": repr(error)},
+                metadata={"failed": True},
+            )
+        finally:
+            self.root.end()
 
 
 def _normalize_trace_id(value: str) -> str:

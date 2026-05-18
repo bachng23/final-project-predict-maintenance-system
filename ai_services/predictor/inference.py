@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import logging
+import threading
 from collections import deque
 from typing import Optional
 
@@ -15,14 +16,21 @@ log = logging.getLogger(__name__)
 
 # Per-bearing sliding window: bearing_id → deque of HI history dicts
 # Each entry: {"hi_raw": float, "ts_minutes": float, "rpm": int, "load_kn": float}
+# Guarded by _hi_history_lock — FastAPI may dispatch concurrent /predict calls
+# for the same bearing into different threads (run_in_threadpool), and torch
+# inference releases the GIL.
 _hi_history: dict[str, deque] = {}
+_hi_history_lock = threading.Lock()
 SEQ_LEN = 30
 MAX_HISTORY_BEARINGS = 50
 HISTORY_EVICT_COUNT = 10
 
 
 def _cleanup_hi_history() -> None:
-    """Keep per-bearing HI buffers bounded during long stress/demo runs."""
+    """Keep per-bearing HI buffers bounded during long stress/demo runs.
+
+    Caller must hold _hi_history_lock.
+    """
     if len(_hi_history) <= MAX_HISTORY_BEARINGS:
         return
     eviction_count = min(HISTORY_EVICT_COUNT, len(_hi_history) - MAX_HISTORY_BEARINGS)
@@ -72,6 +80,7 @@ def _update_hi_history(
     rpm: int,
     load_kn: float,
 ) -> deque:
+    """Caller must hold _hi_history_lock."""
     if bearing_id not in _hi_history:
         _hi_history[bearing_id] = deque(maxlen=SEQ_LEN)
 
@@ -209,10 +218,11 @@ def _platt_calibrate(pfail_raw: float) -> float:
 
 def _degradation_rate(bearing_id: str) -> Optional[float]:
     """Slope of last 5 HI values (simple linear regression)."""
-    buf = _hi_history.get(bearing_id)
-    if buf is None or len(buf) < 2:
-        return None
-    window = list(buf)[-5:]
+    with _hi_history_lock:
+        buf = _hi_history.get(bearing_id)
+        if buf is None or len(buf) < 2:
+            return None
+        window = list(buf)[-5:]
     hi_vals = [e["hi_raw"] for e in window]
     if len(hi_vals) < 2:
         return None
@@ -239,32 +249,39 @@ def predict(record: FeatureRecord, ctx: BearingContext) -> PredictionRecord:
     Maintains per-bearing HI history buffer internally.
     """
     ml.assert_loaded()
-    _cleanup_hi_history()
     n_passes = ml.model_card.get("uncertainty", {}).get("mc_passes", 50)
 
-    # Detect replay / restart: if elapsed_minutes regressed, the bearing run
-    # has been reset (demo replay or new real run starting from file 1).
-    # Discard the stale buffer so the sequence doesn't mix old and new data.
-    existing = _hi_history.get(record.bearing_id)
-    if existing and existing[-1]["ts_minutes"] > ctx.elapsed_minutes:
-        log.info(
-            "[%s] Replay detected (elapsed %.1f < last %.1f) — resetting HI buffer",
-            record.bearing_id,
-            ctx.elapsed_minutes,
-            existing[-1]["ts_minutes"],
-        )
-        del _hi_history[record.bearing_id]
-
-    # Stage 1
+    # Stage 1 — autoencoder is pure on the input features, no shared state.
     hi_raw, _ = run_ae(record.features)
 
-    buf = _update_hi_history(
-        record.bearing_id, hi_raw,
-        ctx.elapsed_minutes, ctx.rpm, ctx.load_kn,
-    )
+    # All _hi_history reads/writes must be serialized: torch releases the GIL
+    # during inference, and FastAPI may dispatch concurrent /predict calls for
+    # the same bearing across threads. Snapshot the buffer under the lock,
+    # then run the rest of the pipeline on a local copy.
+    with _hi_history_lock:
+        _cleanup_hi_history()
 
-    hi_norm = _normalise_hi(buf)
-    seq     = _build_sequence(buf, hi_norm, ml.rul_scaler["max_time"])
+        # Detect replay / restart: if elapsed_minutes regressed, the bearing run
+        # has been reset (demo replay or new real run starting from file 1).
+        # Discard the stale buffer so the sequence doesn't mix old and new data.
+        existing = _hi_history.get(record.bearing_id)
+        if existing and existing[-1]["ts_minutes"] > ctx.elapsed_minutes:
+            log.info(
+                "[%s] Replay detected (elapsed %.1f < last %.1f) — resetting HI buffer",
+                record.bearing_id,
+                ctx.elapsed_minutes,
+                existing[-1]["ts_minutes"],
+            )
+            del _hi_history[record.bearing_id]
+
+        buf = _update_hi_history(
+            record.bearing_id, hi_raw,
+            ctx.elapsed_minutes, ctx.rpm, ctx.load_kn,
+        )
+        buf_snapshot = list(buf)
+
+    hi_norm = _normalise_hi(buf_snapshot)
+    seq     = _build_sequence(buf_snapshot, hi_norm, ml.rul_scaler["max_time"])
 
     # Stage 2
     mc = run_mc_dropout(seq, n_passes=n_passes)

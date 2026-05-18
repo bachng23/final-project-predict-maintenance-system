@@ -115,6 +115,11 @@ async def consume_loop(
     await consumer.start()
     logger.info(f"Consumer started: topic={topic}, group={group_id}")
 
+    # Contract: `handler` MUST propagate exceptions for messages it failed to
+    # process. We commit only after the handler returns normally; a raised
+    # exception leaves the offset uncommitted so the broker redelivers after
+    # restart. Handlers that wrap their own try/except and swallow errors will
+    # silently lose data — this is intentional, not defensive.
     try:
         async for msg in consumer:
             try:
@@ -124,12 +129,11 @@ async def consume_loop(
 
                 await handler(msg.value)
                 await consumer.commit()
-            except Exception as e:
-                logger.error(f"Error handling message from {topic}: {e}")
-                # Do NOT commit — re-raise so the offset stays un-committed.
-                # The message will be redelivered after the consumer restarts,
-                # giving the handler a chance to retry.  Callers that want
-                # at-most-once semantics should catch inside their own handler.
+            except Exception:
+                logger.exception(
+                    "Error handling message from %s (offset=%s, key=%s)",
+                    topic, getattr(msg, "offset", None), getattr(msg, "key", None),
+                )
                 raise
     finally:
         await consumer.stop()
