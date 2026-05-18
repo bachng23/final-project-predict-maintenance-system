@@ -7,7 +7,7 @@ const decisionActionSchema = z.object({
   action: z.string().transform(v => v.toUpperCase()).pipe(
     z.enum(['APPROVE', 'OVERRIDE', 'REJECT', 'ACKNOWLEDGE'])
   ),
-  overrideReason: z.string().optional(),
+  overrideReason: z.string().max(1000).optional(),
   // Make expectedVersion optional for backward compatibility (Recommendation Step 3)
   expectedVersion: z.number().optional(),
   selected_action: z.enum(['CONTINUE', 'INSPECT', 'MAINTAIN', 'STOP']).optional(),

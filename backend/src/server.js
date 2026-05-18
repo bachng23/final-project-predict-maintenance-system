@@ -7,8 +7,13 @@ const PORT = process.env.PORT || 5000;
 
 const httpServer = http.createServer(app);
 
-initWS(httpServer).then(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+initWS(httpServer)
+  .then(() => {
+    httpServer.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('[server] Fatal: WebSocket initialization failed:', err);
+    process.exit(1);
   });
-});

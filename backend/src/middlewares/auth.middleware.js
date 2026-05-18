@@ -12,11 +12,14 @@ if (!JWT_SECRET) {
 const requireAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader) {
       return next(new Error('UNAUTHORIZED'));
     }
-
-    const token = authHeader.split(' ')[1];
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
+      return next(new Error('UNAUTHORIZED'));
+    }
+    const token = parts[1];
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);

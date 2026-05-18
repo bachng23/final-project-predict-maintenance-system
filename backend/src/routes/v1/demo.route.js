@@ -16,6 +16,11 @@ const CONDITION_FOLDERS = ['35Hz12kN', '37.5Hz11kN', '40Hz10kN'];
 
 let demoProcess = null;
 let currentBearing = null;
+let demoTimeout = null;
+
+// Maximum runtime for a demo pipeline (30 minutes). Prevents zombie processes
+// if the client never calls /stop or the server restarts unexpectedly.
+const DEMO_MAX_MS = 30 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/demo/bearings
@@ -78,9 +83,18 @@ router.post('/start', requireAuth, requireRole(['ADMIN', 'OPERATOR']), (req, res
   demoProcess.stderr.on('data', d => process.stderr.write(`[demo] ${d}`));
   demoProcess.on('close', (code) => {
     console.log(`[demo] Pipeline exited (code ${code})`);
+    clearTimeout(demoTimeout);
+    demoTimeout = null;
     demoProcess = null;
     currentBearing = null;
   });
+
+  demoTimeout = setTimeout(() => {
+    if (demoProcess && !demoProcess.killed) {
+      console.warn('[demo] Max runtime exceeded — killing pipeline');
+      demoProcess.kill('SIGTERM');
+    }
+  }, DEMO_MAX_MS);
 
   currentBearing = bearingId;
   res.json({ success: true, bearing_id: bearingId, speed });
@@ -93,6 +107,8 @@ router.post('/stop', requireAuth, requireRole(['ADMIN', 'OPERATOR']), (req, res)
   if (demoProcess && !demoProcess.killed) {
     demoProcess.kill('SIGTERM');
   }
+  clearTimeout(demoTimeout);
+  demoTimeout = null;
   demoProcess = null;
   currentBearing = null;
   res.json({ success: true });

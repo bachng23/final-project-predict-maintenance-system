@@ -1,5 +1,14 @@
 const bearingService = require('../services/bearing.service');
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]+)?$/;
+
+function parseSafeDate(value) {
+  if (!value) return undefined;
+  if (!ISO_DATE_RE.test(value)) return null; // signal bad format
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /**
  * GET /api/v1/bearings
  * Get list of all bearings with their latest status
@@ -32,10 +41,16 @@ const getBearingPredictions = async (req, res, next) => {
       ? Math.min(parsedLimit, 1000)
       : 100;
 
+    const startDate = parseSafeDate(start_date);
+    const endDate = parseSafeDate(end_date);
+    if (startDate === null || endDate === null) {
+      return res.status(400).json({ success: false, message: 'Invalid date format. Use ISO 8601 (e.g. 2024-01-01T00:00:00Z).' });
+    }
+
     const predictions = await bearingService.getPredictionsByBearingId(id, {
       limit: safeLimit,
-      startDate: start_date,
-      endDate: end_date
+      startDate,
+      endDate,
     });
 
     res.json({

@@ -1,11 +1,17 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { z } = require('zod');
 const prisma = require('../config/prisma');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
+
+const loginSchema = z.object({
+  username: z.string().trim().min(1).max(64),
+  password: z.string().min(1).max(128),
+});
 
 /**
  * Login user
@@ -14,14 +20,14 @@ if (!JWT_SECRET) {
  */
 const login = async (req, res) => {
   try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
       return res.status(400).json({
         success: false,
         message: 'Username and password are required',
       });
     }
+    const { username, password } = parsed.data;
 
     // Find user by username
     const user = await prisma.user.findUnique({
@@ -30,6 +36,7 @@ const login = async (req, res) => {
 
     // Check if user exists
     if (!user) {
+      console.warn('[auth] login_failed reason=user_not_found username=%s ip=%s', username, req.ip);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
@@ -38,6 +45,7 @@ const login = async (req, res) => {
 
     // Check if user is active
     if (!user.active) {
+      console.warn('[auth] login_failed reason=inactive_account username=%s ip=%s', username, req.ip);
       return res.status(401).json({
         success: false,
         message: 'User account is inactive',
@@ -47,6 +55,7 @@ const login = async (req, res) => {
     // Compare password hash
     const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordMatch) {
+      console.warn('[auth] login_failed reason=wrong_password username=%s ip=%s', username, req.ip);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
@@ -78,7 +87,7 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('[auth] login_error ip=%s err=%s', req.ip, error.message);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
