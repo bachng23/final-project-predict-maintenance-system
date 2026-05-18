@@ -466,6 +466,9 @@ export function AgentsPage() {
   const [bearingList, setBearingList] = useState<BearingSummary[]>([]);
   const [selectedBearing, setSelectedBearing] = useState(initialBearing);
 
+  // Intentionally runs once on mount: load the bearing list and set a default
+  // selection only when none was supplied via the URL ?bearing= param.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchDashboard()
       .then(d => {
@@ -476,7 +479,7 @@ export function AgentsPage() {
         }
       })
       .catch(() => {});
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const cycles = useMemo(() => generateTimeline(TOTAL_CYCLES), []);
   const N = cycles.length;

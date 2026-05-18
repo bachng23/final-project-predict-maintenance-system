@@ -1,45 +1,59 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
-const TOKEN_KEY = "pdm.auth.token";
 
-type LoginResponse = Record<string, unknown>;
+export type TokenUser = {
+  id: string;
+  role: string;
+  username?: string;
+  fullName?: string;
+};
 
 export function endpoint(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
 }
 
-export function getToken() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
-}
+// ---------------------------------------------------------------------------
+// Token is now stored in an httpOnly cookie set by the backend.
+// JS cannot read it — these stubs exist only for backward compat.
+// ---------------------------------------------------------------------------
 
-export function setToken(token: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(TOKEN_KEY, token);
-}
+/** @deprecated Token lives in httpOnly cookie — JS cannot read it. Always null. */
+export function getToken(): null { return null; }
 
-export function clearToken() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_KEY);
-}
+/** @deprecated Cookie is set by the server on login. This is a no-op. */
+export function setToken(_token: string): void {}
 
-export function hasToken() {
-  return Boolean(getToken());
-}
+/** @deprecated Use logout() to clear the server-side cookie. */
+export function clearToken(): void {}
 
-export type TokenUser = {
-  id: string;
-  role: string;
-};
-
-export function getUserFromToken(): TokenUser | null {
-  const token = getToken();
-  if (!token) return null;
+/** Check auth by calling /auth/me — true if cookie is valid. */
+export async function hasToken(): Promise<boolean> {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const id = typeof payload.id === "string" ? payload.id : "";
-    const role = typeof payload.role === "string" ? payload.role : "";
-    return id && role ? { id, role } : null;
+    const res = await fetch(endpoint("/api/v1/auth/me"), {
+      credentials: "include",
+      cache: "no-store",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Current user — fetched from /auth/me, not decoded from a local token.
+// ---------------------------------------------------------------------------
+
+export async function getUserFromToken(): Promise<TokenUser | null> {
+  try {
+    const res = await fetch(endpoint("/api/v1/auth/me"), {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const body = await res.json() as { success?: boolean; user?: TokenUser };
+    const u = body.user;
+    if (!u?.id || !u?.role) return null;
+    return { id: u.id, role: u.role, username: u.username, fullName: u.fullName };
   } catch {
     return null;
   }
@@ -52,29 +66,34 @@ export function redirectToLogin() {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+// ---------------------------------------------------------------------------
+// authFetch — credentials: "include" sends the httpOnly cookie automatically.
+// ---------------------------------------------------------------------------
+
+export async function withAuthHeaders(headers?: HeadersInit): Promise<Headers> {
+  const nextHeaders = new Headers(headers);
+  return nextHeaders;
 }
 
-function pickToken(payload: unknown): string | null {
-  const record = asRecord(payload);
-  const data = asRecord(record.data);
-  const user = asRecord(record.user);
-  const candidates = [
-    record.token,
-    record.accessToken,
-    record.access_token,
-    record.jwt,
-    data.token,
-    data.accessToken,
-    data.access_token,
-    data.jwt,
-    user.token,
-    user.accessToken,
-  ];
+export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const response = await fetch(input, {
+    ...init,
+    credentials: "include",
+  });
 
-  const match = candidates.find((value) => typeof value === "string" && value.trim());
-  return typeof match === "string" ? match : null;
+  if (response.status === 401 || response.status === 403) {
+    redirectToLogin();
+  }
+
+  return response;
+}
+
+// ---------------------------------------------------------------------------
+// login / logout
+// ---------------------------------------------------------------------------
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
 function getErrorMessage(payload: unknown, fallback: string) {
@@ -84,34 +103,10 @@ function getErrorMessage(payload: unknown, fallback: string) {
   return typeof message === "string" && message.trim() ? message : fallback;
 }
 
-export function withAuthHeaders(headers?: HeadersInit) {
-  const nextHeaders = new Headers(headers);
-  const token = getToken();
-
-  if (token) {
-    nextHeaders.set("Authorization", `Bearer ${token}`);
-  }
-
-  return nextHeaders;
-}
-
-export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
-  const response = await fetch(input, {
-    ...init,
-    headers: withAuthHeaders(init.headers),
-  });
-
-  if (response.status === 401 || response.status === 403) {
-    clearToken();
-    redirectToLogin();
-  }
-
-  return response;
-}
-
-export async function login(username: string, password: string) {
+export async function login(username: string, password: string): Promise<TokenUser> {
   const response = await fetch(endpoint("/api/v1/auth/login"), {
     method: "POST",
+    credentials: "include",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -119,9 +114,9 @@ export async function login(username: string, password: string) {
     body: JSON.stringify({ username, password }),
   });
 
-  let payload: LoginResponse | null = null;
+  let payload: Record<string, unknown> | null = null;
   try {
-    payload = (await response.json()) as LoginResponse;
+    payload = (await response.json()) as Record<string, unknown>;
   } catch {
     payload = null;
   }
@@ -130,10 +125,24 @@ export async function login(username: string, password: string) {
     throw new Error(getErrorMessage(payload, "Invalid username or password."));
   }
 
-  const token = pickToken(payload);
-  if (!token) {
-    throw new Error("Login response did not include an access token.");
-  }
+  // Server set the httpOnly cookie; return the user object for in-memory state.
+  const user = asRecord(payload?.user);
+  return {
+    id: String(user.id ?? ""),
+    role: String(user.role ?? ""),
+    username: typeof user.username === "string" ? user.username : undefined,
+    fullName: typeof user.fullName === "string" ? user.fullName : undefined,
+  };
+}
 
-  setToken(token);
+export async function logout(): Promise<void> {
+  try {
+    await fetch(endpoint("/api/v1/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    // ignore network errors — navigate to login regardless
+  }
+  redirectToLogin();
 }

@@ -11,15 +11,18 @@ if (!JWT_SECRET) {
  */
 const requireAuth = async (req, res, next) => {
   try {
+    // Prefer httpOnly cookie; fall back to Bearer header for API clients / dev tools
+    const cookieToken = req.cookies?.pdm_token;
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return next(new Error('UNAUTHORIZED'));
+    let token = cookieToken;
+    if (!token) {
+      if (!authHeader) return next(new Error('UNAUTHORIZED'));
+      const parts = authHeader.split(' ');
+      if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
+        return next(new Error('UNAUTHORIZED'));
+      }
+      token = parts[1];
     }
-    const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
-      return next(new Error('UNAUTHORIZED'));
-    }
-    const token = parts[1];
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);

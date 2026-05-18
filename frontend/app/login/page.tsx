@@ -10,15 +10,15 @@ export default function Page() {
   const router = useRouter();
 
   useEffect(() => {
-    if (hasToken()) {
-      router.replace("/");
-    }
+    void hasToken().then((loggedIn) => {
+      if (loggedIn) router.replace("/");
+    });
   }, [router]);
 
   async function handleSubmit(username: string, password: string) {
     await login(username, password);
+    // Server set the httpOnly cookie on login; navigate to dashboard.
     router.replace("/");
-    router.refresh();
   }
 
   return (

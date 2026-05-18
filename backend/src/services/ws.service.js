@@ -64,8 +64,19 @@ async function startKafkaConsumer(kafka) {
 // socket.io middleware & events
 // ---------------------------------------------------------------------------
 
+function parseCookieToken(cookieHeader) {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/(?:^|;\s*)pdm_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function authMiddleware(socket, next) {
-  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  // Cookie takes priority (httpOnly cookie sent on WS upgrade request)
+  // Fall back to auth object or query param for backward compat / dev tools
+  const token =
+    parseCookieToken(socket.handshake.headers?.cookie) ||
+    socket.handshake.auth?.token ||
+    socket.handshake.query?.token;
 
   if (!token) {
     console.error(`[ws] Connection rejected: No token provided (Socket ID: ${socket.id})`);

@@ -20,6 +20,7 @@ const MAX_POINTS = 200;
 export function useRULStream(bearingId: string) {
   const [points, setPoints] = useState<RULPoint[]>([]);
   const [connected, setConnected] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
   const anomalyFileIdxs = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -33,8 +34,16 @@ export function useRULStream(bearingId: string) {
     predSock.emit('subscribe', bearingId);
     snapSock.emit('subscribe', bearingId);
 
-    predSock.on('connect', () => setConnected(true));
-    predSock.on('disconnect', () => setConnected(false));
+    const onConnect    = () => { setConnected(true); setWsError(null); };
+    const onDisconnect = () => setConnected(false);
+    const onError      = (err: Error) => {
+      setConnected(false);
+      setWsError(err?.message ?? 'WebSocket connection failed');
+    };
+
+    predSock.on('connect',       onConnect);
+    predSock.on('disconnect',    onDisconnect);
+    predSock.on('connect_error', onError);
 
     const onPrediction = (payload: Record<string, unknown>) => {
       if (payload.bearing_id !== bearingId) return;
@@ -72,12 +81,13 @@ export function useRULStream(bearingId: string) {
     return () => {
       predSock.emit('unsubscribe', bearingId);
       snapSock.emit('unsubscribe', bearingId);
-      predSock.off('prediction', onPrediction);
-      snapSock.off('snapshot', onSnapshot);
-      predSock.off('connect');
-      predSock.off('disconnect');
+      predSock.off('prediction',    onPrediction);
+      snapSock.off('snapshot',      onSnapshot);
+      predSock.off('connect',       onConnect);
+      predSock.off('disconnect',    onDisconnect);
+      predSock.off('connect_error', onError);
     };
   }, [bearingId]);
 
-  return { points, connected };
+  return { points, connected, wsError };
 }

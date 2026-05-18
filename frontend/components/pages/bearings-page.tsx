@@ -63,6 +63,8 @@ type SortKey = "risk" | "rul" | "name";
 
 export function BearingsPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("risk");
@@ -70,10 +72,22 @@ export function BearingsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-    const timer = window.setInterval(() => {
-      fetchDashboard(controller.signal).then(setData).catch(() => undefined);
-    }, 30000);
+
+    const load = async () => {
+      try {
+        const result = await fetchDashboard(controller.signal);
+        setData(result);
+        setError(null);
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        setError("Failed to load bearings. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(load, 30000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
 
@@ -106,6 +120,25 @@ export function BearingsPage() {
   return (
     <AppShell title="Bearings" searchPlaceholder="Search bearings...">
       <div className="flex flex-col gap-6 p-7 pb-20">
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="py-16 text-center text-sm" style={{ color: "var(--color-ash-gray)" }}>
+            Loading bearings…
+          </div>
+        )}
+
+        {/* Error state */}
+        {!loading && error && (
+          <div
+            className="rounded-lg px-4 py-3 text-sm"
+            style={{ background: "var(--color-rose-tint)", color: "var(--color-rose)", border: "1px solid #fecdd3" }}
+          >
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && (
+        <>
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium" style={{ color: "var(--color-ash-gray)" }}>
@@ -266,6 +299,8 @@ export function BearingsPage() {
               </tbody>
             </table>
           </div>
+        )}
+        </>
         )}
       </div>
     </AppShell>

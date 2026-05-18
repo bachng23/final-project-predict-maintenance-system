@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { clearToken, getUserFromToken, hasToken, type TokenUser, authFetch, endpoint } from "@/lib/auth";
+import { logout, getUserFromToken, type TokenUser, authFetch, endpoint } from "@/lib/auth";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -63,20 +64,17 @@ export function AppShell({
   const [displayName, setDisplayName] = useState<string>("");
 
   useEffect(() => {
-    if (!hasToken()) {
-      router.replace("/login");
-    } else {
-      setCurrentUser(getUserFromToken());
+    // Verify session by calling /auth/me — the httpOnly cookie is sent automatically.
+    // authFetch redirects to /login on 401, so we only need to handle the success path.
+    getUserFromToken().then((user) => {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      setCurrentUser(user);
+      setDisplayName(user.fullName ?? user.username ?? "");
       setAuthChecked(true);
-      authFetch(endpoint("/api/v1/users/me"))
-        .then(r => r.ok ? r.json() : null)
-        .then((data: unknown) => {
-          if (data && typeof (data as Record<string, unknown>).name === "string") {
-            setDisplayName((data as Record<string, string>).name);
-          }
-        })
-        .catch(() => {});
-    }
+    });
   }, [router]);
 
   useEffect(() => {
@@ -106,9 +104,7 @@ export function AppShell({
   if (!authChecked) return null;
 
   function handleLogout() {
-    clearToken();
-    router.replace("/login");
-    router.refresh();
+    void logout(); // clears httpOnly cookie via POST /auth/logout then redirects
   }
 
   const isActive = (href: string, exact?: boolean) => {
@@ -368,7 +364,7 @@ export function AppShell({
           </div>
         </header>
 
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </div>
     </div>
   );

@@ -75,10 +75,17 @@ const login = async (req, res) => {
       data: { lastLoginAt: new Date() },
     });
 
-    // Return success response
+    // Set token as httpOnly cookie — not accessible via JS, immune to XSS
+    res.cookie('pdm_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 8 * 60 * 60 * 1000, // 8 h in ms — matches JWT expiresIn
+      path: '/',
+    });
+
     return res.status(200).json({
       success: true,
-      token,
       user: {
         id: user.id,
         username: user.username,
@@ -95,6 +102,20 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = {
-  login,
+/**
+ * GET /api/v1/auth/me — return current user from cookie/token
+ */
+const me = async (req, res) => {
+  const { id, username, role, fullName } = req.user;
+  res.json({ success: true, user: { id, username, role, fullName } });
 };
+
+/**
+ * POST /api/v1/auth/logout — clear the auth cookie
+ */
+const logout = (_req, res) => {
+  res.clearCookie('pdm_token', { httpOnly: true, path: '/' });
+  res.json({ success: true });
+};
+
+module.exports = { login, me, logout };
