@@ -13,7 +13,11 @@ router.use('/v1', v1Routes);
 // bearingRoute second: handles / and /:id/predictions
 router.use('/bearings', requireAuth, bearingsRoute);
 router.use('/bearings', requireAuth, bearingRoute);
+<<<<<<< Updated upstream
 router.use('/decisions', decisionRoute);
+=======
+router.use('/decisions', requireAuth, decisionRoute);
+>>>>>>> Stashed changes
 
 router.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend is running' });
