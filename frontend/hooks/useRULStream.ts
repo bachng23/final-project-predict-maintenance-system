@@ -20,6 +20,8 @@ const MAX_POINTS = 200;
 export function useRULStream(bearingId: string) {
   const [points, setPoints] = useState<RULPoint[]>([]);
   const [connected, setConnected] = useState(false);
+  const [snapshotsConnected, setSnapshotsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const anomalyFileIdxs = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -33,8 +35,25 @@ export function useRULStream(bearingId: string) {
     predSock.emit('subscribe', bearingId);
     snapSock.emit('subscribe', bearingId);
 
-    predSock.on('connect', () => setConnected(true));
-    predSock.on('disconnect', () => setConnected(false));
+    const onPredConnect = () => {
+      setConnected(true);
+      setConnectionError(null);
+    };
+    const onPredDisconnect = () => setConnected(false);
+    const onSnapConnect = () => {
+      setSnapshotsConnected(true);
+      setConnectionError(null);
+    };
+    const onSnapDisconnect = () => setSnapshotsConnected(false);
+    const onPredError = (error: Error) => setConnectionError(error.message || "Predictions socket failed to connect.");
+    const onSnapError = (error: Error) => setConnectionError(error.message || "Snapshots socket failed to connect.");
+
+    predSock.on('connect', onPredConnect);
+    predSock.on('disconnect', onPredDisconnect);
+    snapSock.on('connect', onSnapConnect);
+    snapSock.on('disconnect', onSnapDisconnect);
+    predSock.on('connect_error', onPredError);
+    snapSock.on('connect_error', onSnapError);
 
     const onPrediction = (payload: Record<string, unknown>) => {
       if (payload.bearing_id !== bearingId) return;
@@ -74,10 +93,14 @@ export function useRULStream(bearingId: string) {
       snapSock.emit('unsubscribe', bearingId);
       predSock.off('prediction', onPrediction);
       snapSock.off('snapshot', onSnapshot);
-      predSock.off('connect');
-      predSock.off('disconnect');
+      predSock.off('connect', onPredConnect);
+      predSock.off('disconnect', onPredDisconnect);
+      snapSock.off('connect', onSnapConnect);
+      snapSock.off('disconnect', onSnapDisconnect);
+      predSock.off('connect_error', onPredError);
+      snapSock.off('connect_error', onSnapError);
     };
   }, [bearingId]);
 
-  return { points, connected };
+  return { points, connected, snapshotsConnected, connectionError };
 }
