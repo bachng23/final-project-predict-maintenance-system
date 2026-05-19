@@ -2,35 +2,46 @@ const prisma = require('../config/prisma');
 const { getIO } = require('./ws.service');
 
 /**
- * Get all pending decisions with snapshot summary
- * @returns {Promise<Array>}
+ * Get pending decisions with snapshot summary
+ * @param {Object} params
+ * @param {number} params.page
+ * @param {number} params.limit
+ * @returns {Promise<{data: Array, total: number, page: number, limit: number}>}
  */
-const getPendingDecisions = async () => {
-  const decisions = await prisma.decision.findMany({
-    where: {
-      decisionStatus: 'PENDING',
-    },
-    include: {
-      snapshot: {
-        select: {
-          summaryJson: true,
-          snapshotTs: true,
-          triggerSource: true,
-          bearing: {
-            select: {
-              bearingId: true,
-              displayName: true,
+const getPendingDecisions = async ({ page, limit }) => {
+  const skip = (page - 1) * limit;
+  const where = {
+    decisionStatus: 'PENDING',
+  };
+
+  const [total, decisions] = await prisma.$transaction([
+    prisma.decision.count({ where }),
+    prisma.decision.findMany({
+      where,
+      include: {
+        snapshot: {
+          select: {
+            summaryJson: true,
+            snapshotTs: true,
+            triggerSource: true,
+            bearing: {
+              select: {
+                bearingId: true,
+                displayName: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      openedAt: 'desc',
-    },
-  });
+      orderBy: {
+        openedAt: 'desc',
+      },
+      skip,
+      take: limit,
+    }),
+  ]);
 
-  return decisions.map((d) => {
+  const data = decisions.map((d) => {
     const summary = d.snapshot.summaryJson || {};
     return {
       id: d.id,
@@ -51,6 +62,13 @@ const getPendingDecisions = async () => {
       rul: summary.rul ?? 0,
     };
   });
+
+  return {
+    data,
+    total,
+    page,
+    limit,
+  };
 };
 
 /**
