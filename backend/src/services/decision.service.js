@@ -6,7 +6,7 @@ const { getIO } = require('./ws.service');
  * @param {Object} params
  * @param {number} params.page
  * @param {number} params.limit
- * @returns {Promise<{data: Array, total: number, page: number, limit: number}>}
+ * @returns {Promise<{data: Array, total: number, page: number, limit: number, totalPages: number}>}
  */
 const getPendingDecisions = async ({ page, limit }) => {
   const skip = (page - 1) * limit;
@@ -68,6 +68,7 @@ const getPendingDecisions = async ({ page, limit }) => {
     total,
     page,
     limit,
+    totalPages: Math.ceil(total / limit),
   };
 };
 
