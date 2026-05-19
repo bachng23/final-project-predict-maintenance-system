@@ -84,13 +84,16 @@ export function AppShell({
       try {
         const res = await authFetch(endpoint("/api/v1/decisions/pending"));
         if (!res.ok) return;
-        const raw: unknown = await res.json();
-        const arr = Array.isArray(raw)
-          ? raw
-          : Array.isArray((raw as Record<string, unknown>)?.data)
-            ? (raw as Record<string, unknown>).data as unknown[]
-            : [];
-        setPendingCount((arr as unknown[]).length);
+        const raw = await res.json() as Record<string, unknown>;
+        // Prefer paginated `total` field; fall back to array length for old API shape
+        const total = typeof raw?.total === 'number'
+          ? raw.total
+          : Array.isArray(raw?.data)
+            ? (raw.data as unknown[]).length
+            : Array.isArray(raw)
+              ? (raw as unknown[]).length
+              : 0;
+        setPendingCount(total);
       } catch {
         // silently ignore — badge just won't show
       }

@@ -21,18 +21,38 @@ const decisionActionSchema = z.object({
   path: ["overrideReason"]
 });
 
+const pendingDecisionQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 /**
  * GET /api/decisions/pending
  */
 const getPendingDecisions = async (req, res, next) => {
   try {
-    const decisions = await decisionService.getPendingDecisions();
+    const { page, limit } = pendingDecisionQuerySchema.parse(req.query);
+    const result = await decisionService.getPendingDecisions({ page, limit });
+
     res.json({
       success: true,
-      count: decisions.length,
-      data: decisions,
+      data: result.data,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: error.issues?.[0]?.message || 'Validation failed',
+          detail: error.issues,
+        },
+      });
+    }
+
     next(error);
   }
 };
