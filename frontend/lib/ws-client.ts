@@ -4,6 +4,7 @@
  */
 
 import { type Socket, io } from 'socket.io-client';
+import { getToken } from "@/lib/auth";
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? '';
 
@@ -12,6 +13,7 @@ function makeSocket(namespace: string): Socket | null {
   return io(`${WS_URL}${namespace}`, {
     transports: ['websocket'],
     autoConnect: true,
+    auth: { token: getToken() ?? undefined },
     reconnectionDelay: 2000,
   });
 }

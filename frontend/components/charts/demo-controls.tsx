@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Play, Square, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { authFetch, endpoint } from "@/lib/auth";
 
 interface BearingOption {
   id: string;
@@ -18,8 +19,6 @@ interface Props {
   onStop?: () => void;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
-
 export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   const [bearings, setBearings] = useState<BearingOption[]>([]);
   const [selectedId, setSelectedId] = useState(defaultBearingId ?? "");
@@ -31,8 +30,8 @@ export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   // Load available bearings + sync running state together
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/v1/demo/bearings`).then((r) => r.json()).catch(() => ({ bearings: [] })),
-      fetch(`${API}/v1/demo/status`).then((r) => r.json()).catch(() => ({ running: false })),
+      authFetch(endpoint("/api/v1/demo/bearings")).then((r) => r.json()).catch(() => ({ bearings: [] })),
+      authFetch(endpoint("/api/v1/demo/status")).then((r) => r.json()).catch(() => ({ running: false })),
     ]).then(([bearingRes, statusRes]) => {
       const list: BearingOption[] = bearingRes.bearings ?? [];
       setBearings(list);
@@ -52,7 +51,7 @@ export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   async function startDemo() {
     setError(null);
     try {
-      const res = await fetch(`${API}/v1/demo/start`, {
+      const res = await authFetch(endpoint("/api/v1/demo/start"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bearing_id: selectedId, speed }),
@@ -69,7 +68,7 @@ export function DemoControls({ defaultBearingId, onStart, onStop }: Props) {
   async function stopDemo() {
     setError(null);
     try {
-      await fetch(`${API}/v1/demo/stop`, { method: "POST" });
+      await authFetch(endpoint("/api/v1/demo/stop"), { method: "POST" });
     } catch {
       // best-effort
     }

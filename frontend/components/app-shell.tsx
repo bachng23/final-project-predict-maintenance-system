@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   Bell,
@@ -12,9 +13,11 @@ import {
   CircleDot,
   Inbox,
   Brain,
+  LogOut,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { clearToken, hasToken } from "@/lib/auth";
 
 type AppShellProps = {
   children: ReactNode;
@@ -41,11 +44,24 @@ export function AppShell({
   searchPlaceholder = "Search...",
 }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const authenticated = hasToken();
+
+  useEffect(() => {
+    if (!authenticated) {
+      router.replace("/login");
+      router.refresh();
+    }
+  }, [authenticated, router]);
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
     return pathname === href || pathname.startsWith(href + "/");
   };
+
+  if (!authenticated) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen" style={{ background: "var(--color-canvas-fog)" }}>
@@ -140,6 +156,19 @@ export function AppShell({
               OPERATOR
             </span>
           </div>
+          <button
+            type="button"
+            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-canvas-fog)]"
+            style={{ color: "var(--color-ash-gray)" }}
+            aria-label="Log out"
+            onClick={() => {
+              clearToken();
+              router.replace("/login");
+              router.refresh();
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </aside>
 
