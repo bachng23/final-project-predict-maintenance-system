@@ -2,6 +2,7 @@ const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { requireAuth, requireRole } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
 
@@ -20,26 +21,30 @@ let currentBearing = null;
 // GET /api/v1/demo/bearings
 // Returns all available bearing IDs from the dataset folders.
 // ---------------------------------------------------------------------------
-router.get('/bearings', (req, res) => {
-  const bearings = [];
-  for (const folder of CONDITION_FOLDERS) {
-    const dir = path.join(DATA_ROOT, folder);
-    if (!fs.existsSync(dir)) continue;
-    for (const name of fs.readdirSync(dir)) {
-      const full = path.join(dir, name);
-      if (fs.statSync(full).isDirectory() && /^Bearing\d+_\d+$/.test(name)) {
-        const csvCount = fs.readdirSync(full).filter(f => f.endsWith('.csv')).length;
-        bearings.push({ id: name, condition: folder, files: csvCount });
+router.get('/bearings', requireAuth, (req, res) => {
+  try {
+    const bearings = [];
+    for (const folder of CONDITION_FOLDERS) {
+      const dir = path.join(DATA_ROOT, folder);
+      if (!fs.existsSync(dir)) continue;
+      for (const name of fs.readdirSync(dir)) {
+        const full = path.join(dir, name);
+        if (fs.statSync(full).isDirectory() && /^Bearing\d+_\d+$/.test(name)) {
+          const csvCount = fs.readdirSync(full).filter(f => f.endsWith('.csv')).length;
+          bearings.push({ id: name, condition: folder, files: csvCount });
+        }
       }
     }
+    res.json({ bearings });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to read bearing dataset', error: err.message });
   }
-  res.json({ bearings });
 });
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/demo/status
 // ---------------------------------------------------------------------------
-router.get('/status', (req, res) => {
+router.get('/status', requireAuth, (req, res) => {
   res.json({
     running: !!(demoProcess && !demoProcess.killed),
     bearing_id: currentBearing,
@@ -50,7 +55,7 @@ router.get('/status', (req, res) => {
 // POST /api/v1/demo/start
 // Body: { bearing_id: "Bearing1_3", speed: 30 }
 // ---------------------------------------------------------------------------
-router.post('/start', (req, res) => {
+router.post('/start', requireAuth, requireRole(['ADMIN', 'OPERATOR']), (req, res) => {
   if (demoProcess && !demoProcess.killed) {
     return res.status(409).json({ success: false, message: 'Demo already running', bearing_id: currentBearing });
   }
@@ -84,7 +89,7 @@ router.post('/start', (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/v1/demo/stop
 // ---------------------------------------------------------------------------
-router.post('/stop', (req, res) => {
+router.post('/stop', requireAuth, requireRole(['ADMIN', 'OPERATOR']), (req, res) => {
   if (demoProcess && !demoProcess.killed) {
     demoProcess.kill('SIGTERM');
   }

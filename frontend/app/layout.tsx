@@ -15,8 +15,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Architect Hub",
-  description: "Predictive maintenance monitoring frontend",
+  title: "Marco.ai — Predictive Maintenance",
+  description: "AI-powered predictive maintenance intelligence platform",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className={`${inter.variable} ${manrope.variable} font-body`}>
         {children}
       </body>
