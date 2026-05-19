@@ -34,6 +34,12 @@ export function RULChart({ connected, points, wsError }: Props) {
 
   // Track whether user has manually dragged the brush
   const userPanned = useRef(false);
+
+  // Only show disconnect banner after we've been connected at least once —
+  // avoids false positive on initial page load when connected=false briefly.
+  const wasConnected = useRef(false);
+  if (connected) wasConnected.current = true;
+  const showDisconnectBanner = wasConnected.current && !connected;
   const [brushRange, setBrushRange] = useState<{ start: number; end: number }>({
     start: 0,
     end: WINDOW - 1,
@@ -61,7 +67,7 @@ export function RULChart({ connected, points, wsError }: Props) {
 
   return (
     <div className="space-y-2">
-      {(!connected || wsError) && (
+      {(showDisconnectBanner || wsError) && (
         <div
           className="rounded-lg px-4 py-3 text-sm"
           style={{
@@ -70,7 +76,7 @@ export function RULChart({ connected, points, wsError }: Props) {
             color: "var(--color-rose)",
           }}
         >
-          Live data disconnected - showing last known values
+          {wsError ?? "Live data disconnected – showing last known values"}
         </div>
       )}
 
