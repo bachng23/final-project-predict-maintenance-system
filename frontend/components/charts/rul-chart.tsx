@@ -21,6 +21,7 @@ const WINDOW = 40; // default number of points visible in the brush window
 interface Props {
   points: RULPoint[];
   connected: boolean;
+  wsError?: string | null;
 }
 
 function fmt(minutes: number) {
@@ -28,11 +29,17 @@ function fmt(minutes: number) {
   return `${(minutes / 60).toFixed(1)} hr`;
 }
 
-export function RULChart({ connected, points }: Props) {
+export function RULChart({ connected, points, wsError }: Props) {
   const anomalyPoints = points.filter((p) => p.anomaly);
 
   // Track whether user has manually dragged the brush
   const userPanned = useRef(false);
+
+  // Only show disconnect banner after we've been connected at least once —
+  // avoids false positive on initial page load when connected=false briefly.
+  const wasConnected = useRef(false);
+  if (connected) wasConnected.current = true;
+  const showDisconnectBanner = wasConnected.current && !connected;
   const [brushRange, setBrushRange] = useState<{ start: number; end: number }>({
     start: 0,
     end: WINDOW - 1,
@@ -60,6 +67,19 @@ export function RULChart({ connected, points }: Props) {
 
   return (
     <div className="space-y-2">
+      {(showDisconnectBanner || wsError) && (
+        <div
+          className="rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: "var(--color-rose-tint)",
+            border: "1px solid #fecdd3",
+            color: "var(--color-rose)",
+          }}
+        >
+          {wsError ?? "Live data disconnected – showing last known values"}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 text-xs text-slate-400">
         <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400" : "bg-slate-600"}`} />
         {connected ? "Live — WebSocket connected" : "Waiting for connection…"}
