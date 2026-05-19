@@ -16,7 +16,10 @@ import {
 } from "recharts";
 
 import { AppShell } from "@/components/app-shell";
+import { DemoControls } from "@/components/charts/demo-controls";
 import { D3Gauge } from "@/components/charts/d3-gauge";
+import { RULChart } from "@/components/charts/rul-chart";
+import { useRULStream } from "@/hooks/useRULStream";
 import { type BearingDetailData, type BearingStatus, fetchBearingDetail } from "@/lib/backend-api";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -90,6 +93,25 @@ function CardHead({ title, subtitle }: { title: string; subtitle?: string }) {
   );
 }
 
+function ConnectionPill({ label, connected }: { label: string; connected: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold"
+      style={{
+        background: connected ? "var(--color-emerald-tint)" : "var(--color-canvas-fog)",
+        color: connected ? "var(--color-emerald)" : "var(--color-ash-gray)",
+        border: "1px solid var(--color-stone-border)",
+      }}
+    >
+      <span
+        className="h-2 w-2 rounded-full"
+        style={{ background: connected ? "var(--color-emerald)" : "var(--color-ash-gray)" }}
+      />
+      {label}: {connected ? "Connected" : "Waiting"}
+    </span>
+  );
+}
+
 // ─── BearingDetailPage ────────────────────────────────────────────────────────
 
 export function BearingDetailPage({ bearingId }: { bearingId: string }) {
@@ -118,6 +140,14 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
 
   const latest = data?.telemetry.at(-1);
   const bearing = data?.bearing;
+  const streamBearingId = bearing?.id ?? bearingId;
+  const {
+    points: liveRulPoints,
+    connected: predictionsConnected,
+    snapshotsConnected,
+    wsError,
+  } = useRULStream(streamBearingId);
+  const wsConnected = predictionsConnected && snapshotsConnected;
 
   const failureProbability = latest?.failureProbability ?? bearing?.failureProbability ?? 0;
   const healthScore = latest?.healthScore ?? bearing?.healthScore ?? 0;
@@ -283,6 +313,35 @@ export function BearingDetailPage({ bearingId }: { bearingId: string }) {
                 {mounted ? "No telemetry history available." : "Loading chart..."}
               </div>
             )}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="Live WebSocket Stream" subtitle="Realtime prediction and snapshot connection state" />
+          <div className="space-y-5 px-6 py-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <ConnectionPill label="Predictions" connected={predictionsConnected} />
+              <ConnectionPill label="Snapshots" connected={snapshotsConnected} />
+              <span className="ml-auto text-xs" style={{ color: "var(--color-ash-gray)" }}>
+                {liveRulPoints.length} live samples
+              </span>
+            </div>
+
+            {wsError && (
+              <div
+                className="rounded-lg px-4 py-3 text-sm"
+                style={{
+                  background: "var(--color-rose-tint)",
+                  color: "var(--color-rose)",
+                  border: "1px solid #fecdd3",
+                }}
+              >
+                {wsError}
+              </div>
+            )}
+
+            <DemoControls defaultBearingId={streamBearingId} />
+            <RULChart connected={wsConnected} points={liveRulPoints} />
           </div>
         </Card>
 
