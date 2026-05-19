@@ -1,5 +1,27 @@
 const bcrypt = require('bcrypt');
+const { z } = require('zod');
 const prisma = require('../config/prisma');
+
+const VALID_ROLES = ['ADMIN', 'OPERATOR', 'ENGINEER', 'VIEWER'];
+
+const createUserSchema = z.object({
+  username: z.string().trim().min(3).max(32),
+  password: z.string().min(8).max(128),
+  fullName: z.string().trim().max(100).optional(),
+  email: z.string().email().optional(),
+  role: z.enum(VALID_ROLES).default('VIEWER'),
+});
+
+const updateUserSchema = z.object({
+  role: z.enum(VALID_ROLES).optional(),
+  active: z.boolean().optional(),
+}).refine((data) => data.role !== undefined || data.active !== undefined, {
+  message: 'At least one field (role or active) must be provided',
+});
+
+const getUsersQuerySchema = z.object({
+  role: z.enum(VALID_ROLES).optional(),
+});
 
 /**
  * GET /api/v1/users
@@ -7,11 +29,15 @@ const prisma = require('../config/prisma');
  */
 const getUsers = async (req, res, next) => {
   try {
-    const { role } = req.query;
-    const where = {};
-    if (role) {
-      where.role = role;
+    const parsed = getUsersQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message },
+      });
     }
+
+    const where = parsed.data.role ? { role: parsed.data.role } : {};
 
     const users = await prisma.user.findMany({
       where,
@@ -45,24 +71,19 @@ const getUsers = async (req, res, next) => {
  */
 const createUser = async (req, res, next) => {
   try {
-    const { username, password, fullName, email, role } = req.body;
-
-    if (!username || !password) {
-      const error = new Error('Username and password are required');
-      error.name = 'ValidationError';
-      return next(error);
+    const parsed = createUserSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message, detail: parsed.error.issues },
+      });
     }
 
+    const { username, password, fullName, email, role } = parsed.data;
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
-      data: {
-        username,
-        passwordHash,
-        fullName,
-        email,
-        role: role || 'VIEWER',
-      },
+      data: { username, passwordHash, fullName, email, role },
     });
 
     const { passwordHash: _, ...userWithoutPassword } = user;
@@ -82,23 +103,18 @@ const createUser = async (req, res, next) => {
  */
 const updateUser = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { role, active } = req.body;
-
-    // Build update data object
-    const data = {};
-    if (role !== undefined) data.role = role;
-    if (active !== undefined) data.active = active;
-
-    if (Object.keys(data).length === 0) {
-      const error = new Error('At least one field (role or active) must be provided');
-      error.name = 'ValidationError';
-      return next(error);
+    const parsed = updateUserSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message, detail: parsed.error.issues },
+      });
     }
 
+    const { id } = req.params;
     const user = await prisma.user.update({
       where: { id },
-      data,
+      data: parsed.data,
     });
 
     const { passwordHash: _, ...userWithoutPassword } = user;
